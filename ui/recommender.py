@@ -39,8 +39,9 @@ def get_users():
     return users
 
 
-# @st.cache
-def get_tweets(limit=10, skip=None):
+@st.cache
+def get_tweets(mode=None, user_id=None, limit=10, skip=None):
+    #mode and user_id just for correct cache functionality
     if skip is None:
         skip = random.randint(0, 1000)
     tweets = []
@@ -95,7 +96,7 @@ for k, v in user.items():
 
 st.markdown(f'# Predicted ***{mode}*** for tweets:')
 
-tweets = get_tweets()
+tweets = get_tweets(mode, user_id)
 df = arr_to_df(tweets)
 table = st.table(df[['tweet_type',
                      #'hashtags',
