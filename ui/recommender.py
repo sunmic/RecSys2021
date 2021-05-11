@@ -39,7 +39,7 @@ def get_users():
         users[id] = node
     return users
 
-@st.cache
+# @st.cache
 def get_tweets(limit=10, skip=None):
     if skip is None:
         skip = random.randint(0, 1000)
