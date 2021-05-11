@@ -66,7 +66,8 @@ def get_tweets(mode=None, user_id=None, limit=10, skip=None):
         # del tweet['text_tokens']
         tweet['text'] = tokenizer.decode(text_tokens).replace('[CLS] ', '').replace('[SEP]', '')
         tweets.append(tweet)
-    return tweets
+    tweets_df = arr_to_df(tweets)
+    return tweets_df
 
 
 def arr_to_df(arr):
@@ -97,8 +98,8 @@ for k, v in user.items():
 st.markdown(f'# Predicted ***{mode}*** for tweets:')
 
 tweets = get_tweets(mode, user_id)
-df = arr_to_df(tweets)
-table = st.table(df[['tweet_type',
+
+table = st.table(tweets[['tweet_type',
                      #'hashtags',
                      # 'language',
                      'text']])
