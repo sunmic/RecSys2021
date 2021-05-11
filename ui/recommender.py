@@ -3,6 +3,7 @@ from neo4j import GraphDatabase
 from transformers import BertTokenizer
 import pandas as pd
 import sys
+import numpy as np
 import random
 import time
 
@@ -69,6 +70,15 @@ def get_tweets(mode=None, user_id=None, limit=10, skip=None):
     tweets_df = arr_to_df(tweets)
     return tweets_df
 
+def get_mode():
+    modes = ['reply', 'retweet', 'quote', 'fav']
+    mode_cols = st.beta_columns(len(modes))
+    mode = 'reply'
+    for i, col in enumerate(mode_cols):
+        with col:
+            if st.button(modes[i]):
+                mode = modes[i]
+    return mode
 
 def arr_to_df(arr):
     dic = dict()
@@ -80,11 +90,13 @@ def arr_to_df(arr):
     df = pd.DataFrame(dic)
     return df
 
+def predict(user_id, tweet_id):
+    return {mode : np.random.rand() for mode in ['reply', 'retweet', 'quote', 'fav']}
 
 users = get_users()
 
 user_id = st.sidebar.selectbox("Choose user:", list(users.keys()))
-mode = st.sidebar.radio("Choose recommendation type:", ['reply', 'retweet', 'quote', 'fav'])
+predict_engagement = st.sidebar.checkbox("Predict engagement")
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
 
@@ -95,14 +107,26 @@ for k, v in user.items():
         v = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(v))
     st.markdown(f'{k}:\t **{v}**')
 
-st.markdown(f'# Predicted ***{mode}*** for tweets:')
+if predict_engagement:
+    tweets_indexed = get_tweets(user_id=user_id).set_index("id")
+    st.markdown(tweets_indexed.columns)
+    tweet_id = st.selectbox("Tweet id", tweets_indexed.index)
+    if tweet_id:
+        tweet = tweets_indexed.loc[tweet_id, :]
+        st.write(tweet)
+        st.markdown("**Prediction**")
+        for k, v in predict(user_id, tweet_id).items():
+            st.markdown("%s: %.3f" % (k,v))
+    
+else:
+    mode = get_mode()
+    st.markdown(f'# Predicted ***{mode}*** for tweets:')
+    tweets = get_tweets(mode, user_id)
+    table = st.table(tweets[['tweet_type',
+                        #'hashtags',
+                        # 'language',
+                        'text']])
 
-tweets = get_tweets(mode, user_id)
-
-table = st.table(tweets[['tweet_type',
-                     #'hashtags',
-                     # 'language',
-                     'text']])
 
 driver.close()
 
