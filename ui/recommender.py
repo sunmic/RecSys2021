@@ -7,7 +7,6 @@ import random
 import time
 
 
-
 if len(sys.argv) < 4:
     st.error(f'Usage: streamlit run {sys.argv[0]} <neo4j_host> <user> <password>')
     exit(-1)
@@ -17,16 +16,16 @@ user = sys.argv[2] #'neo4j'
 password = sys.argv[3]
 uri = f'bolt://{host}:7687'
 
+
 # @st.cache
 def neo4j_driver(uri=uri, user=user, password=password):
     driver = GraphDatabase.driver(uri, auth=(user, password))
     return driver
 
 
-#main
-
 driver = neo4j_driver()
 db = driver.session()
+
 
 @st.cache
 def get_users():
@@ -38,6 +37,7 @@ def get_users():
         id = node['id']
         users[id] = node
     return users
+
 
 # @st.cache
 def get_tweets(limit=10, skip=None):
@@ -67,6 +67,7 @@ def get_tweets(limit=10, skip=None):
         tweets.append(tweet)
     return tweets
 
+
 def arr_to_df(arr):
     dic = dict()
     for elem in arr:
@@ -76,6 +77,7 @@ def arr_to_df(arr):
             dic[k].append(v)
     df = pd.DataFrame(dic)
     return df
+
 
 users = get_users()
 
