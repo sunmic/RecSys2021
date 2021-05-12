@@ -96,7 +96,7 @@ def predict(user_id, tweet_id):
 users = get_users()
 
 user_id = st.sidebar.selectbox("Choose user:", list(users.keys()))
-predict_engagement = st.sidebar.checkbox("Predict engagement probability")
+predict_engagement = st.sidebar.checkbox("Predict engagement")
 
 tokenizer = BertTokenizer.from_pretrained('bert-base-multilingual-cased')
 
@@ -111,12 +111,11 @@ if predict_engagement:
     tweets_indexed = get_tweets(user_id=user_id).set_index("id")
     tweet_id = st.selectbox("Tweet id", tweets_indexed.index)
     if tweet_id:
-        st.markdown("**Prediction**")
-        for k, v in predict(user_id, tweet_id).items():
-            st.markdown("%s: %.3f" % (k, v))
-        st.markdown("**Tweet details**")
         tweet = tweets_indexed.loc[tweet_id, :]
         st.write(tweet)
+        st.markdown("**Prediction**")
+        for k, v in predict(user_id, tweet_id).items():
+            st.markdown("%s: %.3f" % (k,v))
     
 else:
     mode = get_mode()
