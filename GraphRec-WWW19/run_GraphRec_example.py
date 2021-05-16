@@ -40,8 +40,9 @@ If you use this code, please cite our paper:
 
 class GraphRec(nn.Module):
 
-    def __init__(self, enc_u, enc_v_history, r2e):
+    def __init__(self, enc_u, enc_v_history, r2e, recsys=False):
         super(GraphRec, self).__init__()
+        self.recsys = recsys
         self.enc_u = enc_u
         self.enc_v_history = enc_v_history
         self.embed_dim = enc_u.embed_dim
@@ -52,13 +53,17 @@ class GraphRec(nn.Module):
         self.w_vr2 = nn.Linear(self.embed_dim, self.embed_dim)
         self.w_uv1 = nn.Linear(self.embed_dim * 2, self.embed_dim)
         self.w_uv2 = nn.Linear(self.embed_dim, 16)
-        self.w_uv3 = nn.Linear(16, 1)
+        if self.recsys:
+            self.w_uv3 = nn.Linear(16, 4)
+            self.criterion = nn.BCELoss()
+        else:
+            self.w_uv3 = nn.Linear(16, 1)
+            self.criterion = nn.MSELoss()
         self.r2e = r2e
         self.bn1 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
         self.bn2 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
         self.bn3 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
         self.bn4 = nn.BatchNorm1d(16, momentum=0.5)
-        self.criterion = nn.MSELoss()
 
     def forward(self, nodes_u, nodes_v):
         embeds_u = self.enc_u(nodes_u)
@@ -76,7 +81,11 @@ class GraphRec(nn.Module):
         x = F.dropout(x, training=self.training)
         x = F.relu(self.bn4(self.w_uv2(x)))
         x = F.dropout(x, training=self.training)
-        scores = self.w_uv3(x)
+
+        if self.recsys:
+            scores = F.sigmoid(self.w_uv3(x))
+        else:
+            scores = self.w_uv3(x)
         return scores.squeeze()
 
     def loss(self, nodes_u, nodes_v, labels_list):
@@ -126,6 +135,8 @@ def main():
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
     parser.add_argument('--epochs', type=int, default=100, metavar='N', help='number of epochs to train')
+    parser.add_argument('--recsys', type=bool, default=False, help='use model for RecSys challange')
+    parser.add_argument('--f', type=str, default='./data/toy_dataset.pickle', help='path to dataset file')
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -134,10 +145,10 @@ def main():
         use_cuda = True
     device = torch.device("cuda" if use_cuda else "cpu")
 
+    recsys = args.recsys
     embed_dim = args.embed_dim
-    dir_data = './data/toy_dataset'
 
-    path_data = dir_data + ".pickle"
+    path_data = args.f
     data_file = open(path_data, 'rb')
     history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list = pickle.load(
         data_file)
@@ -183,7 +194,7 @@ def main():
     enc_v_history = UV_Encoder(v2e, embed_dim, history_v_lists, history_vr_lists, agg_v_history, cuda=device, uv=False)
 
     # model
-    graphrec = GraphRec(enc_u, enc_v_history, r2e).to(device)
+    graphrec = GraphRec(enc_u, enc_v_history, r2e, recsys=recsys).to(device)
     optimizer = torch.optim.RMSprop(graphrec.parameters(), lr=args.lr, alpha=0.9)
 
     best_rmse = 9999.0
