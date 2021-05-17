@@ -1,0 +1,5 @@
+transformers
+jupyter
+streamlit
+neo4j
+numpy
