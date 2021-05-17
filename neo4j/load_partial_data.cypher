@@ -37,13 +37,13 @@ CREATE CONSTRAINT users_unique IF NOT EXISTS ON (u:User) ASSERT u.id IS UNIQUE;
 CREATE CONSTRAINT tweets_unique IF NOT EXISTS ON (t:Tweet) ASSERT t.id IS UNIQUE;
 
 // author relationship
-// USING PERIODIC COMMIT 5000
-// LOAD CSV WITH HEADERS FROM 'file:///' + $fileprefix + '-relationship.csv' AS row
-// FIELDTERMINATOR ';'
-// MATCH (author :User{ id: row.enaging_user_id })
-// MATCH (tweet: Tweet{ id: row.tweet_id })
-// CREATE (author)-[r:Author]->(tweet)
-// ;
+USING PERIODIC COMMIT 5000
+LOAD CSV WITH HEADERS FROM 'file:///' + $fileprefix + '-tweet.csv' AS row
+FIELDTERMINATOR ';'
+MATCH (author: User{ id: row.author_id })
+MATCH (tweet: Tweet{ id: row.tweet_id })
+CREATE (author)-[r:Author]->(tweet)
+;
 
 // retweet relationships
 USING PERIODIC COMMIT 5000

@@ -17,6 +17,7 @@ tweet_features = [
     "tweet_type", "language", 
     "tweet_timestamp",
 ]
+tweet_author_features = tweet_features + ["author_id"]
 user_features = [
     "user_id", "follower_count", "following_count", "is_verified", "account_creation"
 ] # X 2 for engaged with and engaging
@@ -83,7 +84,7 @@ with open(tweet_data_fp, "w") as tweet_f, \
     like_writer = csv.writer(like_f, delimiter=";")
     comment_writer = csv.writer(comment_f, delimiter=";")
     # csv headers 
-    tweet_writer.writerow(tweet_features)
+    tweet_writer.writerow(tweet_author_features)
     user_writer.writerow(user_features)
     follows_writer.writerow(user_user_features)
     replies_writer.writerow(user_tweet_features)
@@ -105,10 +106,7 @@ with open(tweet_data_fp, "w") as tweet_f, \
         # write to csv files
         pos = 0
         tweet_id = cols[pos + 2]
-        if tweet_id not in tweet_ids:
-            tweet_writer.writerow(cols[pos:pos+len(tweet_features)])
-            tweet_ids.add(tweet_id)
-            new_tweet_ids.add(tweet_id)
+        tweet_cols = cols[pos:pos+len(tweet_features)]
         pos = pos + len(tweet_features)
 
         engaged_with_id = cols[pos]
@@ -123,19 +121,24 @@ with open(tweet_data_fp, "w") as tweet_f, \
             user_writer.writerow(cols[pos:pos+len(user_features)])
             user_ids.add(engaging_id)
             new_user_ids.add(engaging_id)
-        
         pos = pos + len(user_features)
+
+        if tweet_id not in tweet_ids:
+            tweet_writer.writerow(tweet_cols + [engaged_with_id])
+            tweet_ids.add(tweet_id)
+            new_tweet_ids.add(tweet_id)
+
         follows, reply, retweet, comment, like = cols[pos:pos+len(relationships_features)]
         if follows == 'true':
-            follows_writer.writerow([engaged_with_id, engaging_id])
+            follows_writer.writerow([engaging_id, engaged_with_id])
         if len(reply) != 0:
-            replies_writer.writerow([engaged_with_id, tweet_id, reply])
+            replies_writer.writerow([engaging_id, tweet_id, reply])
         if len(retweet) != 0:
-            retweet_writer.writerow([engaged_with_id, tweet_id, retweet])
+            retweet_writer.writerow([engaging_id, tweet_id, retweet])
         if len(comment) != 0:
-            comment_writer.writerow([engaged_with_id, tweet_id, comment])
+            comment_writer.writerow([engaging_id, tweet_id, comment])
         if len(like) != 0:
-            like_writer.writerow([engaged_with_id, tweet_id, like])
+            like_writer.writerow([engaging_id, tweet_id, like])
         # update progress
         pbar.update(1)
     pbar.close()
