@@ -1,7 +1,7 @@
 // CSV Data import Cypher script
 
 // user nodes
-USING PERIODIC COMMIT 10000
+USING PERIODIC COMMIT 50000
 LOAD CSV WITH HEADERS FROM 'file:///' + $fileprefix + '-user.csv' AS row
 FIELDTERMINATOR ';'
 CREATE 
@@ -15,7 +15,7 @@ CREATE
 ;
 
 // tweeet nodes
-USING PERIODIC COMMIT 10000
+USING PERIODIC COMMIT 50000
 LOAD CSV WITH HEADERS FROM 'file:///' + $fileprefix + '-tweet.csv' AS row
 FIELDTERMINATOR ';'
 CREATE
@@ -37,52 +37,52 @@ CREATE CONSTRAINT users_unique IF NOT EXISTS ON (u:User) ASSERT u.id IS UNIQUE;
 CREATE CONSTRAINT tweets_unique IF NOT EXISTS ON (t:Tweet) ASSERT t.id IS UNIQUE;
 
 // author relationship
-USING PERIODIC COMMIT 5000
+USING PERIODIC COMMIT 25000
 LOAD CSV WITH HEADERS FROM 'file:///' + $fileprefix + '-tweet.csv' AS row
 FIELDTERMINATOR ';'
 MATCH (author: User{ id: row.author_id })
 MATCH (tweet: Tweet{ id: row.tweet_id })
-CREATE (author)-[r:Author]->(tweet)
+MERGE (author)-[r:Author]->(tweet)
 ;
 
 // retweet relationships
-USING PERIODIC COMMIT 5000
+USING PERIODIC COMMIT 25000
 LOAD CSV WITH HEADERS FROM 'file:///' + $fileprefix + '-retweet.csv' AS row
 FIELDTERMINATOR ';'
 MATCH (user: User{ id: row.user_id })
 MATCH (tweet: Tweet{ id: row.tweet_id })
-CREATE (user)-[:Retweet{ timestamp: row.timestamp }]->(tweet)
+MERGE (user)-[:Retweet{ timestamp: row.timestamp }]->(tweet)
 ;
 
 // like relationships
-USING PERIODIC COMMIT 5000
+USING PERIODIC COMMIT 25000
 LOAD CSV WITH HEADERS FROM 'file:///' + $fileprefix + '-like.csv' AS row
 FIELDTERMINATOR ';'
 MATCH (user: User{ id: row.user_id })
 MATCH (tweet: Tweet{ id: row.tweet_id })
-CREATE (user)-[:Like{ timestamp: row.timestamp }]->(tweet)
+MERGE (user)-[:Like{ timestamp: row.timestamp }]->(tweet)
 ;
 
 // reply relationships
-USING PERIODIC COMMIT 5000
+USING PERIODIC COMMIT 25000
 LOAD CSV WITH HEADERS FROM 'file:///' + $fileprefix + '-reply.csv' AS row
 FIELDTERMINATOR ';'
 MATCH (user: User{ id: row.user_id })
 MATCH (tweet: Tweet{ id: row.tweet_id })
-CREATE (user)-[:Reply{ timestamp: row.timestamp }]->(tweet)
+MERGE (user)-[:Reply{ timestamp: row.timestamp }]->(tweet)
 ;
 
 // retweet+comment relationships
-USING PERIODIC COMMIT 5000
+USING PERIODIC COMMIT 25000
 LOAD CSV WITH HEADERS FROM 'file:///' + $fileprefix + '-rtcomment.csv' AS row
 FIELDTERMINATOR ';'
 MATCH (user: User{ id: row.user_id })
 MATCH (tweet: Tweet{ id: row.tweet_id })
-CREATE (user)-[:RetweetComment{ timestamp: row.timestamp }]->(tweet)
+MERGE (user)-[:RetweetComment{ timestamp: row.timestamp }]->(tweet)
 ;
 
 // follow relationships
-USING PERIODIC COMMIT 5000
+USING PERIODIC COMMIT 25000
 LOAD CSV WITH HEADERS FROM 'file:///' + $fileprefix + '-follow.csv' AS row
 FIELDTERMINATOR ';'
 MATCH (user1 :User{ id: row.user1_id })

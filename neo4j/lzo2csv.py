@@ -2,6 +2,8 @@
 #
 # Convert LZO file to set of csv, ready for neo4j import
 #
+# This version creates csv files to be consumed by load_partial_data.cypher Cypher script.
+#
 
 import subprocess
 import csv

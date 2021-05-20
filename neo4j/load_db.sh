@@ -1,4 +1,9 @@
 #!/bin/bash
+# 
+# Sequentially convert lzo files from <partsdir> into csv files in <importdir>.
+# Then load them into database using load_partial_data.cypher Cypher script.
+# Neo4j database is required to be run on host machine.
+#
 
 if [ $# -lt 4 ]; then
     echo "Usage: $0 <partsdir> <importdir> <username> <password>"
@@ -33,13 +38,18 @@ for PART_FILE in "${PARTS_DIR}"/*.lzo ; do
 
     cp "${PART_FILE}" "${LOCAL_PART_FILE}"
     echo "====> Running csv conversion"
-    python3 lzo2csv_import.py "${LOCAL_PART_FILE}" "${IMPORT_DIR}/${PREFIX}-" ./user.ids ./tweet.ids
+    python3 lzo2csv.py "${LOCAL_PART_FILE}" "${TEMP_DIR}/${PREFIX}-" ./user.ids ./tweet.ids
+    # sudo is needed - import dir will be owned by neo4j user
+    sudo mv "${TEMP_DIR}/${PREFIX}-"*.csv "${IMPORT_DIR}"/
     echo "====> Adding data to neo4j"
+    # Sometimes db restarts for unknown reason, or there're connection problems
     set +e
     while true; do
-        ./import-db.sh "${PREFIX}-" "${IMPORT_DIR}"
+        cypher-shell --username ${DB_USERNAME} --password ${DB_PASSWORD} \
+                     --param "fileprefix => \"${PREFIX}\"" \
+                     --file cypher/load_partial_data.cypher
         if [ $? -ne 0 ]; then
-            echo "import-db non zero status. Retrying in 5 sec..."
+            echo "Cypher shell non zero status. Retrying in 5 sec..."
             sleep 5
         else
 	        break
@@ -48,13 +58,7 @@ for PART_FILE in "${PARTS_DIR}"/*.lzo ; do
     set -e
     echo "====> Cleanup"
     rm "${LOCAL_PART_FILE}"
-    sudo rm "${IMPORT_DIR}/${PREFIX}-follow.csv"
-    sudo rm "${IMPORT_DIR}/${PREFIX}-like.csv"
-    sudo rm "${IMPORT_DIR}/${PREFIX}-author.csv"
-    sudo rm "${IMPORT_DIR}/${PREFIX}-reply.csv"
-    sudo rm "${IMPORT_DIR}/${PREFIX}-retweet.csv"
-    sudo rm "${IMPORT_DIR}/${PREFIX}-rtcomment.csv"
-    sudo rm "${IMPORT_DIR}/${PREFIX}-tweet.csv"
-    sudo rm "${IMPORT_DIR}/${PREFIX}-user.csv"
+    # sudo is needed - import dir will be owned by neo4j user
+    sudo find "${IMPORT_DIR}" -name "${PREFIX}-*.csv" | sudo xargs -I{} rm {}
     echo "${PREFIX}" >./.progress
 done

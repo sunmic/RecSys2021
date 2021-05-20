@@ -1,4 +1,8 @@
 #!/bin/bash
+#
+# Sequentially decompress all *.lzo at <partsdir> files and convert them into multiple GIANT 
+# csv files (for each node/relationship type) ready to be used by neo4j-admin import tool.
+#
 
 if [ $# -lt 2 ]; then
     echo "Usage: $0 <partsdir> <importdir> [<temp>]"
@@ -13,8 +17,6 @@ if [ $# -lt 3 ]; then
 else
     TEMP_DIR="$3"
 fi
-
-
 
 LATEST_PREFIX=$(cat .progress)
 LATEST_PREFIX_NUM=${LATEST_PREFIX:${#LATEST_PREFIX}-5:5}
@@ -44,10 +46,8 @@ for PART_FILE in "${PARTS_DIR}"/*.lzo ; do
     LOCAL_PART_FILE="${TEMP_DIR}/$(basename ${PART_FILE})"
     PREFIX=$(basename "${LOCAL_PART_FILE}" .lzo)
 
-
     if [ $LATEST_PREFIX ]; then
         PREFIX_NUM=${PREFIX:${#PREFIX}-5:5}
-
         if [ $PREFIX_NUM -le $LATEST_PREFIX_NUM ]; then
             echo "Looks like $PREFIX was already read. Skipping..."
             continue
@@ -55,15 +55,15 @@ for PART_FILE in "${PARTS_DIR}"/*.lzo ; do
     fi
 
     cp "${PART_FILE}" "${LOCAL_PART_FILE}"
-    echo "====> Running csv conversion for $PREFIX"
-    python3 lzo2csv_import.py "${LOCAL_PART_FILE}" "${IMPORT_DIR}/part-" "${SHARED_MEM_USER_IDS}" "${SHARED_MEM_TWEET_IDS}" "a"
-    echo "====> Cleanup"
+    echo "=====> Running csv conversion for $PREFIX"
+    python3 lzo2csv_admin_import.py "${LOCAL_PART_FILE}" "${IMPORT_DIR}/part-" "${SHARED_MEM_USER_IDS}" "${SHARED_MEM_TWEET_IDS}" "a"
+    echo "=====> Cleanup"
     rm "${LOCAL_PART_FILE}"
     echo "${PREFIX}" >./.progress
 
     ITER=$((ITER+1))
     if [ $((ITER%5)) -eq 0 ]; then
-        echo "====> Saving ids"
+        echo "=====> Saving ids"
         cp ${SHARED_MEM_USER_IDS} ${LOCAL_USER_IDS}
         cp ${SHARED_MEM_TWEET_IDS} ${LOCAL_TWEET_IDS}
         echo "${PREFIX}" >./.progress-ids

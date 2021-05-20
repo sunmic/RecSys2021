@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 #
-# Convert LZO file to set of csv, ready for neo4j import
+# Convert LZO file to set of csv, ready for neo4j import.
+#
+# This version creates csv files to be consumed by neo4j-admin import tool.
+# To append to existing files specify "a" as 5th arguement.
 #
 
 import subprocess
@@ -44,6 +47,9 @@ follow_cols = [
 engagement_cols = [
     ":START_ID(User-ID)", "timestamp:int", ":END_ID(Tweet-ID)", ":TYPE"
 ]
+seen_engagement_cols = [ 
+    ":START_ID(User-ID)", ":END_ID(Tweet-ID)", ":TYPE"
+]
 
 ARRAY_DELIMITER=","
 
@@ -75,6 +81,8 @@ def reply_rel_row(user, tweet, timestamp):
     return [user, int(timestamp), tweet, "Reply"]
 def rtcomment_rel_row(user, tweet, timestamp):
     return [user, int(timestamp), tweet, "RetweetComment"]
+def seen_rel_row(user, tweet):
+    return [user, tweet, "Seen"]
 
 if len(sys.argv) < 5:
     print(f"Usage: {sys.argv[0]} input.lzo output user_ids tweet_ids [mode]")
@@ -99,6 +107,7 @@ reply_fp = output_fp + "reply.csv"
 retweet_fp = output_fp + "retweet.csv"
 like_fp = output_fp + "like.csv"
 comment_fp = output_fp + "rtcomment.csv"
+seen_fp = output_fp + "seen.csv"
 
 user_ids = set()
 tweet_ids = set()
@@ -125,6 +134,7 @@ with open(tweet_data_fp, mode) as tweet_f, \
      open(reply_fp, mode) as reply_f, \
      open(retweet_fp, mode) as retweet_f, \
      open(like_fp, mode) as like_f, \
+     open(seen_fp, mode) as seen_f, \
      open(comment_fp, mode) as comment_f, \
      open(author_fp, mode) as author_f:
     
@@ -137,6 +147,7 @@ with open(tweet_data_fp, mode) as tweet_f, \
     retweet_writer = csv.writer(retweet_f, delimiter=";")
     like_writer = csv.writer(like_f, delimiter=";")
     comment_writer = csv.writer(comment_f, delimiter=";")
+    seen_writer = csv.writer(seen_f, delimiter=";")
     # csv headers 
     if tweet_f.tell() == 0:
         tweet_writer.writerow(tweet_cols)
@@ -152,6 +163,8 @@ with open(tweet_data_fp, mode) as tweet_f, \
         retweet_writer.writerow(engagement_cols)
     if like_f.tell() == 0:
         like_writer.writerow(engagement_cols)
+    if seen_f.tell() == 0:
+        seen_writer.writerow(seen_engagement_cols)
     if comment_f.tell() == 0:
         comment_writer.writerow(engagement_cols)
 
@@ -206,6 +219,8 @@ with open(tweet_data_fp, mode) as tweet_f, \
             comment_writer.writerow(rtcomment_rel_row(engaging_id, tweet_id, comment))
         if len(like) != 0:
             like_writer.writerow(like_rel_row(engaging_id, tweet_id, like))
+        if len(reply) == 0 and len(retweet) == 0 and len(comment) == 0 and len(like) == 0:
+            seen_writer.writerow(seen_rel_row(engaging_id, tweet_id))
         # update progress
         pbar.update(1)
     pbar.close()
