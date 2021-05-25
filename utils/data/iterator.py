@@ -11,7 +11,7 @@ class Neo4jQueryIterator(Iterator):
         start_position: int, step: int, limit_per_step: int, total_length: int
     ):
         if not isinstance(database, neo4j.Driver):
-            raise ValueError("Non neo4j database passes as argument")
+            raise ValueError("Non neo4j driver passed as argument")
 
         self.start_position = start_position
         self.step = step
@@ -28,7 +28,7 @@ class Neo4jQueryIterator(Iterator):
         return self
 
     def __next__(self):
-        if self.position >= self.total_length:
+        if self.total_length is not None and self.position >= self.total_length:
             raise StopIteration()
 
         if self.cache is None or self.local_position >= len(self.cache):

@@ -1,7 +1,11 @@
 class Neo4jQuery(object):
-    def __init__(self, match_clause: str, return_clause: str):
+    def __init__(self, match_clause: str, return_clause: str, count_clause: str = None):
         self.match_clause = match_clause
         self.return_clause = return_clause
+        if count_clause is not None:
+            self.count_clause = count_clause
+        else:
+            self.count_clause = "RETURN count(*)"
 
     def limit_clause(self, limit: int = None, skip: int = None):
         clauses = []
@@ -18,7 +22,7 @@ class Neo4jQuery(object):
     def count(self):
         clauses = [
             self.match_clause,
-            "RETURN count(*)",
+            self.count_clause,
         ]
 
         return " ".join(clauses) + ";"

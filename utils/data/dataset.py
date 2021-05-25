@@ -10,16 +10,17 @@ from .iterator import Neo4jQueryIterator
 
 
 class Neo4jDataset(IterableDataset):
-    def __init__(self, database: neo4j.Driver, query: Neo4jQuery, fetch_size: int, transform: Callable = None):
+    def __init__(self, database: neo4j.Driver, query: Neo4jQuery, fetch_size: int, transform: Callable = None, count_all: bool = True):
         if not isinstance(database, neo4j.Driver):
-            raise ValueError("Non neo4j database passes as argument")
+            raise ValueError("Non neo4j driver passed as argument")
         
         self.database = database
         self.query = query
         self.fetch_size = fetch_size
         self.length = None
         self.transform = transform
-        self._query_total_length()
+        if count_all:
+            self._query_total_length()
 
     def _query_total_length(self):
         log.info("Querying dataset length. It may take a while...")
