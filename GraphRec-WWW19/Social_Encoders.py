@@ -6,9 +6,11 @@ import torch.nn.functional as F
 
 class Social_Encoder(nn.Module):
 
-    def __init__(self, features, embed_dim, social_adj_lists, aggregator, base_model=None, cuda="cpu"):
+    def __init__(self, db, features, embed_dim, social_adj_lists, aggregator, base_model=None, cuda="cpu"):
         super(Social_Encoder, self).__init__()
 
+        self.db = db
+        self.query_template = 'MATCH (u:User)-[:Follow]->(n: User) WHERE u.id IN {} RETURN collect(n.id)'
         self.features = features
         self.social_adj_lists = social_adj_lists
         self.aggregator = aggregator
@@ -21,8 +23,11 @@ class Social_Encoder(nn.Module):
     def forward(self, nodes):
 
         to_neighs = []
-        for node in nodes:
-            to_neighs.append(self.social_adj_lists[int(node)])
+        results = self.db.run(self.query_template.format(nodes))
+        for result in results:
+            neighs = result.values()
+            to_neighs.append(neighs)
+
         neigh_feats = self.aggregator.forward(nodes, to_neighs)  # user-user network
 
         self_feats = self.features(torch.LongTensor(nodes.cpu().numpy())).to(self.device)

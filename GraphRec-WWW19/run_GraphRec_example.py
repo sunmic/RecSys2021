@@ -19,6 +19,9 @@ from math import sqrt
 import datetime
 import argparse
 import os
+from ..utils.data.dataset import Neo4jDataset
+from ..utils.data.query import Neo4jQuery
+from neo4j import GraphDatabase
 
 """
 GraphRec: Graph Neural Networks for Social Recommendation. 
@@ -40,9 +43,8 @@ If you use this code, please cite our paper:
 
 class GraphRec(nn.Module):
 
-    def __init__(self, enc_u, enc_v_history, r2e, recsys=False):
+    def __init__(self, enc_u, enc_v_history, r2e):
         super(GraphRec, self).__init__()
-        self.recsys = recsys
         self.enc_u = enc_u
         self.enc_v_history = enc_v_history
         self.embed_dim = enc_u.embed_dim
@@ -53,12 +55,10 @@ class GraphRec(nn.Module):
         self.w_vr2 = nn.Linear(self.embed_dim, self.embed_dim)
         self.w_uv1 = nn.Linear(self.embed_dim * 2, self.embed_dim)
         self.w_uv2 = nn.Linear(self.embed_dim, 16)
-        if self.recsys:
-            self.w_uv3 = nn.Linear(16, 4)
-            self.criterion = nn.BCELoss()
-        else:
-            self.w_uv3 = nn.Linear(16, 1)
-            self.criterion = nn.MSELoss()
+    
+        self.w_uv3 = nn.Linear(16, 4)
+        self.criterion = nn.BCELoss()
+    
         self.r2e = r2e
         self.bn1 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
         self.bn2 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
@@ -82,10 +82,8 @@ class GraphRec(nn.Module):
         x = F.relu(self.bn4(self.w_uv2(x)))
         x = F.dropout(x, training=self.training)
 
-        if self.recsys:
-            scores = F.sigmoid(self.w_uv3(x))
-        else:
-            scores = self.w_uv3(x)
+        
+        scores = F.sigmoid(self.w_uv3(x))
         return scores.squeeze()
 
     def loss(self, nodes_u, nodes_v, labels_list):
@@ -135,8 +133,10 @@ def main():
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
     parser.add_argument('--epochs', type=int, default=100, metavar='N', help='number of epochs to train')
-    parser.add_argument('--recsys', type=bool, default=False, help='use model for RecSys challange')
-    parser.add_argument('--f', type=str, default='./data/toy_dataset.pickle', help='path to dataset file')
+    parser.add_argument('--host', type=str, default='134.209.251.186', help='database host')
+    parser.add_argument('-u', type=str, default='neo4j', help='database user')
+    parser.add_argument('-p', type=str, help='database password')
+
     args = parser.parse_args()
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -145,36 +145,34 @@ def main():
         use_cuda = True
     device = torch.device("cuda" if use_cuda else "cpu")
 
-    recsys = args.recsys
     embed_dim = args.embed_dim
+    
+    host = args.host
+    user = args.user
+    password = args.password
+    driver = GraphDatabase.driver(f'bolt://{host}:7687', auth=(user, password))
 
-    path_data = args.f
-    data_file = open(path_data, 'rb')
-    history_u_lists, history_ur_lists, history_v_lists, history_vr_lists, train_u, train_v, train_r, test_u, test_v, test_r, social_adj_lists, ratings_list = pickle.load(
-        data_file)
-    """
-    ## toy dataset 
-    history_u_lists, history_ur_lists:  user's purchased history (item set in training set), and his/her rating score (dict)
-    history_v_lists, history_vr_lists:  user set (in training set) who have interacted with the item, and rating score (dict)
-    
-    train_u, train_v, train_r: training_set (user, item, rating)
-    test_u, test_v, test_r: testing set (user, item, rating)
-    
-    # please add the validation set
-    
-    social_adj_lists: user's connected neighborhoods
-    ratings_list: rating value from 0.5 to 4.0 (8 opinion embeddings)
-    """
+    trainset = Neo4jDataset(driver, Neo4jQuery(
+        'MATCH (u: User)-[r:Like|Retweet|Reply|RetweetComment|Seen]->(t:Tweet)',
+        'RETURN DISTINCT u.id as u, t.id as t, \
+            [exists((u)-[:Like]->(t)), exists((u)-[:Retweet]->(t)), exists((u)-[:Reply]->(t)), exists((u)-[:RetweetComment]->(t)) ]'
+    ), 64)
 
-    trainset = torch.utils.data.TensorDataset(torch.LongTensor(train_u), torch.LongTensor(train_v),
-                                              torch.FloatTensor(train_r))
-    testset = torch.utils.data.TensorDataset(torch.LongTensor(test_u), torch.LongTensor(test_v),
-                                             torch.FloatTensor(test_r))
+    # SHOULD BE REPLACED WITH REAL TEST SET
+    testset = Neo4jDataset(driver, Neo4jQuery(
+    'MATCH (u: User)-[r:Like|Retweet|Reply|RetweetComment|Seen]->(t:Tweet)',
+    'RETURN DISTINCT u.id as u, t.id as t, \
+        [exists((u)-[:Like]->(t)), exists((u)-[:Retweet]->(t)), exists((u)-[:Reply]->(t)), exists((u)-[:RetweetComment]->(t)) ]'
+    ), 64)
+
     train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
     test_loader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=True)
-    num_users = history_u_lists.__len__()
-    num_items = history_v_lists.__len__()
-    num_ratings = ratings_list.__len__()
+
+    db = driver.session()
+    num_users = [r.values() for r in db.run("MATCH (u:User) RETURN COUNT(u)")][0][0]
+    num_items = [r.values() for r in db.run("MATCH (t:Tweet) RETURN COUNT(t)")][0][0]
+    num_ratings = 16
+    db.close()
 
     u2e = nn.Embedding(num_users, embed_dim).to(device)
     v2e = nn.Embedding(num_items, embed_dim).to(device)
@@ -183,18 +181,18 @@ def main():
     # user feature
     # features: item * rating
     agg_u_history = UV_Aggregator(v2e, r2e, u2e, embed_dim, cuda=device, uv=True)
-    enc_u_history = UV_Encoder(u2e, embed_dim, history_u_lists, history_ur_lists, agg_u_history, cuda=device, uv=True)
+    enc_u_history = UV_Encoder(driver.session(), u2e, embed_dim, agg_u_history, cuda=device, uv=True)
     # neighobrs
     agg_u_social = Social_Aggregator(lambda nodes: enc_u_history(nodes).t(), u2e, embed_dim, cuda=device)
-    enc_u = Social_Encoder(lambda nodes: enc_u_history(nodes).t(), embed_dim, social_adj_lists, agg_u_social,
+    enc_u = Social_Encoder(driver.session(), lambda nodes: enc_u_history(nodes).t(), embed_dim, agg_u_social,
                            base_model=enc_u_history, cuda=device)
 
     # item feature: user * rating
     agg_v_history = UV_Aggregator(v2e, r2e, u2e, embed_dim, cuda=device, uv=False)
-    enc_v_history = UV_Encoder(v2e, embed_dim, history_v_lists, history_vr_lists, agg_v_history, cuda=device, uv=False)
+    enc_v_history = UV_Encoder(v2e, driver.session(), embed_dim, agg_v_history, cuda=device, uv=False)
 
     # model
-    graphrec = GraphRec(enc_u, enc_v_history, r2e, recsys=recsys).to(device)
+    graphrec = GraphRec(enc_u, enc_v_history, r2e).to(device)
     optimizer = torch.optim.RMSprop(graphrec.parameters(), lr=args.lr, alpha=0.9)
 
     best_rmse = 9999.0
