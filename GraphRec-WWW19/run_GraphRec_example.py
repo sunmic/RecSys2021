@@ -126,9 +126,6 @@ def test(model, device, test_loader):
 
 def main():
 
-    task = Task.init(project_name='RecSys2021', task_name='run_GraphRec_example')
-    task.execute_remotely("default")
-
     # Training settings
     parser = argparse.ArgumentParser(description='Social Recommendation: GraphRec model')
     parser.add_argument('--batch_size', type=int, default=128, metavar='N', help='input batch size for training')
@@ -139,8 +136,13 @@ def main():
     parser.add_argument('--host', type=str, default='35.204.0.240', help='database host')
     parser.add_argument('-u', type=str, default='neo4j', help='database user')
     parser.add_argument('-p', type=str, help='database password')
+    parser.add_argument('--execute_remotely', type=bool, default=False, help='execute remotely as ClearML Task')
 
     args = parser.parse_args()
+
+    if args.execute_remotely:
+        task = Task.init(project_name='RecSys2021', task_name='run_GraphRec_example')
+        task.execute_remotely("default")
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     use_cuda = False
