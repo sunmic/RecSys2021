@@ -189,13 +189,13 @@ def main():
     db.close()
     
     # TODO : Use embeddings more effectively to not waist memory usage
-    u2e = nn.Embedding(max_user_id + 1, embed_dim).to(device)
-    log.info("u2e {}x{} embeddings initialized".format(max_user_id + 1, embed_dim))
-    log.warn("Use embeddings more effectively to not waist memory usage")
+    # u2e = nn.Embedding(max_user_id + 1, embed_dim).to(device)
 
     # TODO : Use embeddings more effectively to not waist memory usage
-    v2e = nn.Embedding(max_item_id + 1, embed_dim).to(device)
-    log.info("v2e {}x{} embeddings initialized".format(max_item_id + 1, embed_dim))
+    # v2e = nn.Embedding(max_item_id + 1, embed_dim).to(device)
+
+    uv2e = nn.Embedding(max_item_id + 1, embed_dim).to(device, dtype=torch.float16) 
+    log.info("uv2e {}x{} embeddings initialized".format(max_item_id + 1, embed_dim))
     log.warn("Use embeddings more effectively to not waist memory usage")
 
     r2e = nn.Embedding(num_ratings, embed_dim).to(device)
@@ -203,16 +203,16 @@ def main():
 
     # user feature
     # features: item * rating
-    agg_u_history = UV_Aggregator(v2e, r2e, u2e, embed_dim, cuda=device, uv=True)
-    enc_u_history = UV_Encoder(driver.session(), u2e, embed_dim, agg_u_history, cuda=device, uv=True)
+    agg_u_history = UV_Aggregator(uv2e, r2e, uv2e, embed_dim, cuda=device, uv=True)
+    enc_u_history = UV_Encoder(driver.session(), uv2e, embed_dim, agg_u_history, cuda=device, uv=True)
     # neighobrs
-    agg_u_social = Social_Aggregator(lambda nodes: enc_u_history(nodes).t(), u2e, embed_dim, cuda=device)
+    agg_u_social = Social_Aggregator(lambda nodes: enc_u_history(nodes).t(), uv2e, embed_dim, cuda=device)
     enc_u = Social_Encoder(driver.session(), lambda nodes: enc_u_history(nodes).t(), embed_dim, agg_u_social,
                            base_model=enc_u_history, cuda=device)
 
     # item feature: user * rating
-    agg_v_history = UV_Aggregator(v2e, r2e, u2e, embed_dim, cuda=device, uv=False)
-    enc_v_history = UV_Encoder(driver.session(), v2e, embed_dim, agg_v_history, cuda=device, uv=False)
+    agg_v_history = UV_Aggregator(uv2e, r2e, uv2e, embed_dim, cuda=device, uv=False)
+    enc_v_history = UV_Encoder(driver.session(), uv2e, embed_dim, agg_v_history, cuda=device, uv=False)
 
     # model
     graphrec = GraphRec(enc_u, enc_v_history, r2e).to(device)
