@@ -17,9 +17,9 @@ class UV_Aggregator(nn.Module):
         self.u2e = u2e
         self.device = cuda
         self.embed_dim = embed_dim
-        self.w_r1 = nn.Linear(self.embed_dim * 2, self.embed_dim)
-        self.w_r2 = nn.Linear(self.embed_dim, self.embed_dim)
-        self.att = Attention(self.embed_dim)
+        self.w_r1 = nn.Linear(self.embed_dim * 2, self.embed_dim).half()
+        self.w_r2 = nn.Linear(self.embed_dim, self.embed_dim).half()
+        self.att = Attention(self.embed_dim).half()
 
     def r2id(self, ratings):
         ratings = np.array(ratings, dtype='int').astype('str')

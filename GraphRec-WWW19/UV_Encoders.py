@@ -13,7 +13,7 @@ class UV_Encoder(nn.Module):
         self.aggregator = aggregator
         self.embed_dim = embed_dim
         self.device = cuda
-        self.linear1 = nn.Linear(2 * self.embed_dim, self.embed_dim)  #
+        self.linear1 = nn.Linear(2 * self.embed_dim, self.embed_dim).half()
 
         self.db = db
         if uv:

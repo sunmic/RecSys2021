@@ -15,7 +15,7 @@ class Social_Encoder(nn.Module):
             self.base_model = base_model
         self.embed_dim = embed_dim
         self.device = cuda
-        self.linear1 = nn.Linear(2 * self.embed_dim, self.embed_dim)  #
+        self.linear1 = nn.Linear(2 * self.embed_dim, self.embed_dim).half()
 
     def forward(self, nodes):
         to_neighs = []
