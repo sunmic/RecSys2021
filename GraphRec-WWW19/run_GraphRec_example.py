@@ -189,18 +189,21 @@ def main():
 
     num_ratings = 16
     db.close()
-
+    
     # TODO : Use embeddings more effectively to not waist memory usage
     # u2e = nn.Embedding(max_user_id + 1, embed_dim).to(device)
 
     # TODO : Use embeddings more effectively to not waist memory usage
     # v2e = nn.Embedding(max_item_id + 1, embed_dim).to(device)
 
+    #uv2e = nn.Embedding(max_item_id + 1, embed_dim).to(device, dtype=torch.float16)
     # workaround: nn.Embedding is unable to use non-default dtype
     num_embeddings, embedding_dim = max_item_id + 1, embed_dim
     embed_weight = torch.zeros(num_embeddings, embedding_dim, dtype=torch.float16)
     torch.nn.init.normal_(embed_weight)
     uv2e = nn.Embedding(num_embeddings, embedding_dim, _weight=embed_weight).to(device)
+    log.warn("Now next large type conversion... it may crash")
+    uv2e32 = uv2e.float()
     log.info("uv2e {}x{} embeddings initialized".format(max_item_id + 1, embed_dim))
     log.warn("Use embeddings more effectively to not waist memory usage")
 
