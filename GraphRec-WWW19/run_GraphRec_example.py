@@ -141,7 +141,7 @@ def main():
     args = parser.parse_args()
 
     if args.execute_remotely:
-        task = Task.init(project_name='RecSys2021', task_name='run_GraphRec_example')
+        task = Task.init(project_name='RecSys2021', task_name='run_GraphRec_example-half')
         task.execute_remotely("default")
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'

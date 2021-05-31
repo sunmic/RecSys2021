@@ -27,7 +27,7 @@ class UV_Aggregator(nn.Module):
 
 
     def forward(self, nodes, history_uv, history_r):
-        embed_matrix = torch.empty(len(history_uv), self.embed_dim).to(self.device, dtype=torch.float16)
+        embed_matrix = torch.empty(len(history_uv), self.embed_dim, dtype=torch.float16).to(self.device)
 
         for i in range(len(history_uv)):
             history = history_uv[i]

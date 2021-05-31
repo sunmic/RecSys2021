@@ -18,7 +18,7 @@ class Social_Aggregator(nn.Module):
         self.att = Attention(self.embed_dim)
 
     def forward(self, nodes, to_neighs):
-        embed_matrix = torch.empty(len(nodes), self.embed_dim).to(self.device, dtype=torch.float16)
+        embed_matrix = torch.empty(len(nodes), self.embed_dim, dtype=torch.float16).to(self.device)
         for i in range(len(nodes)):
             tmp_adj = to_neighs[i]
             num_neighs = len(tmp_adj)
