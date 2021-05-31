@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from clearml import Task
 from torch import  stack
 import numpy as np
 from UV_Encoders import UV_Encoder
@@ -124,6 +125,10 @@ def test(model, device, test_loader):
     return expected_rmse, mae
 
 def main():
+
+    task = Task.init(project_name='RecSys2021', task_name='run_GraphRec_example')
+    task.execute_remotely("default")
+
     # Training settings
     parser = argparse.ArgumentParser(description='Social Recommendation: GraphRec model')
     parser.add_argument('--batch_size', type=int, default=128, metavar='N', help='input batch size for training')
