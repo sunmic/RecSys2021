@@ -45,21 +45,21 @@ class GraphRec(nn.Module):
         self.enc_v_history = enc_v_history
         self.embed_dim = enc_u.embed_dim
 
-        self.w_ur1 = nn.Linear(self.embed_dim, self.embed_dim)
-        self.w_ur2 = nn.Linear(self.embed_dim, self.embed_dim)
-        self.w_vr1 = nn.Linear(self.embed_dim, self.embed_dim)
-        self.w_vr2 = nn.Linear(self.embed_dim, self.embed_dim)
-        self.w_uv1 = nn.Linear(self.embed_dim * 2, self.embed_dim)
-        self.w_uv2 = nn.Linear(self.embed_dim, 16)
+        self.w_ur1 = nn.Linear(self.embed_dim, self.embed_dim).half()
+        self.w_ur2 = nn.Linear(self.embed_dim, self.embed_dim).half()
+        self.w_vr1 = nn.Linear(self.embed_dim, self.embed_dim).half()
+        self.w_vr2 = nn.Linear(self.embed_dim, self.embed_dim).half()
+        self.w_uv1 = nn.Linear(self.embed_dim * 2, self.embed_dim).half()
+        self.w_uv2 = nn.Linear(self.embed_dim, 16).half()
     
-        self.w_uv3 = nn.Linear(16, 4)
+        self.w_uv3 = nn.Linear(16, 4).half()
         self.criterion = nn.BCELoss()
     
         self.r2e = r2e
-        self.bn1 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
-        self.bn2 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
-        self.bn3 = nn.BatchNorm1d(self.embed_dim, momentum=0.5)
-        self.bn4 = nn.BatchNorm1d(16, momentum=0.5)
+        self.bn1 = nn.BatchNorm1d(self.embed_dim, momentum=0.5).half()
+        self.bn2 = nn.BatchNorm1d(self.embed_dim, momentum=0.5).half()
+        self.bn3 = nn.BatchNorm1d(self.embed_dim, momentum=0.5).half()
+        self.bn4 = nn.BatchNorm1d(16, momentum=0.5).half()
 
     def forward(self, nodes_u, nodes_v):
         embeds_u = self.enc_u(nodes_u)
