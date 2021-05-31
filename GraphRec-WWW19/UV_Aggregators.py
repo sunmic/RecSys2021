@@ -1,11 +1,8 @@
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
 import torch.nn.functional as F
 import numpy as np
-import random
 from Attention import Attention
-
 
 class UV_Aggregator(nn.Module):
     """
@@ -24,14 +21,18 @@ class UV_Aggregator(nn.Module):
         self.w_r2 = nn.Linear(self.embed_dim, self.embed_dim)
         self.att = Attention(self.embed_dim)
 
-    def forward(self, nodes, history_uv, history_r):
+    def r2id(self, ratings):
+        ratings = np.array(ratings, dtype='int').astype('str')
+        return [int("".join(x), 2) for x in ratings]
 
+
+    def forward(self, nodes, history_uv, history_r):
         embed_matrix = torch.empty(len(history_uv), self.embed_dim, dtype=torch.float).to(self.device)
 
         for i in range(len(history_uv)):
             history = history_uv[i]
             num_histroy_item = len(history)
-            tmp_label = history_r[i]
+            tmp_label = self.r2id(history_r[i])
 
             if self.uv == True:
                 # user component

@@ -33,7 +33,7 @@ class Neo4jQueryIterator(Iterator):
 
         if self.cache is None or self.local_position >= len(self.cache):
             query_string = self.query.full(limit=self.limit_per_step, skip=self.position + self.step)
-            results = self.session.run(query_string).data()
+            results = self.session.run(query_string).values() # data()
             if len(results) == 0:
                 raise StopIteration()
 

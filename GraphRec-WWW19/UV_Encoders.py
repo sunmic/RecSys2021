@@ -1,8 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.nn import init
 import torch.nn.functional as F
-
 
 class UV_Encoder(nn.Module):
 
@@ -20,29 +18,29 @@ class UV_Encoder(nn.Module):
         self.db = db
         if uv:
             # user-items dict
-            self.query_template = '''\
+            self.query_template = '''
                 MATCH (u:User)
-                WHERE u.id IN {}
-                CALL {
+                WHERE id(u) IN {}
+                CALL {{
                     WITH u
                     MATCH (u)-[:Like|Retweet|Reply|RetweetComment|Seen]->(t: Tweet)
                     RETURN collect(DISTINCT t) as tweets
-                }
+                }}
                 RETURN
-                    [t in tweets | t.id] as v,
+                    [t in tweets | id(t)] as v,
                     [t in tweets | [exists((u)-[:Like]->(t)), exists((u)-[:Retweet]->(t)), exists((u)-[:Reply]->(t)), exists((u)-[:RetweetComment]->(t)) ]] as r'''
         else:
             # item-users dict
-            self.query_template = '''\
+            self.query_template = '''
                 MATCH (t:Tweet)
-                WHERE t.id IN {}
-                CALL {
+                WHERE id(t) IN {}
+                CALL {{
                     WITH t
                     MATCH (u:User)-[:Like|Retweet|Reply|RetweetComment|Seen]->(t)
                     RETURN collect(t) as tweets, collect(DISTINCT u) as users
-                }
+                }}
                 RETURN
-                    [u in users | u.id] as u,
+                    [u in users | id(u)] as u,
                     [u in users | [exists((u)-[:Like]->(t)), exists((u)-[:Retweet]->(t)), exists((u)-[:Reply]->(t)), exists((u)-[:RetweetComment]->(t)) ]] as r'''
                
 
@@ -50,7 +48,7 @@ class UV_Encoder(nn.Module):
     def forward(self, nodes):
         tmp_history_uv = []
         tmp_history_r = []
-        results = self.db.run(self.query_template.format(nodes))
+        results = self.db.run(self.query_template.format(nodes.tolist()))
         for result in results:
             v, r = result.values()
             tmp_history_uv.append(v)

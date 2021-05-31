@@ -1,12 +1,7 @@
 import torch
 import torch.nn as nn
-from torch.nn import init
-from torch.autograd import Variable
-import pickle
+from torch import  stack
 import numpy as np
-import time
-import random
-from collections import defaultdict
 from UV_Encoders import UV_Encoder
 from UV_Aggregators import UV_Aggregator
 from Social_Encoders import Social_Encoder
@@ -16,11 +11,11 @@ import torch.utils.data
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 from math import sqrt
-import datetime
 import argparse
 import os
-from ..utils.data.dataset import Neo4jDataset
-from ..utils.data.query import Neo4jQuery
+import logging as log
+from utils.data.dataset import Neo4jDataset
+from utils.data.query import Neo4jQuery
 from neo4j import GraphDatabase
 
 """
@@ -81,9 +76,8 @@ class GraphRec(nn.Module):
         x = F.dropout(x, training=self.training)
         x = F.relu(self.bn4(self.w_uv2(x)))
         x = F.dropout(x, training=self.training)
-
         
-        scores = F.sigmoid(self.w_uv3(x))
+        scores = torch.sigmoid(self.w_uv3(x))
         return scores.squeeze()
 
     def loss(self, nodes_u, nodes_v, labels_list):
@@ -96,6 +90,11 @@ def train(model, device, train_loader, optimizer, epoch, best_rmse, best_mae):
     running_loss = 0.0
     for i, data in enumerate(train_loader, 0):
         batch_nodes_u, batch_nodes_v, labels_list = data
+        
+        # batch_nodes_u = Tensor([int(x, 16) for x in batch_nodes_u])
+        # batch_nodes_v = Tensor([int(x, 16) for x in batch_nodes_v])
+        labels_list = stack(labels_list).t().float()
+        
         optimizer.zero_grad()
         loss = model.loss(batch_nodes_u.to(device), batch_nodes_v.to(device), labels_list.to(device))
         loss.backward(retain_graph=True)
@@ -124,7 +123,6 @@ def test(model, device, test_loader):
     mae = mean_absolute_error(tmp_pred, target)
     return expected_rmse, mae
 
-
 def main():
     # Training settings
     parser = argparse.ArgumentParser(description='Social Recommendation: GraphRec model')
@@ -133,7 +131,7 @@ def main():
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
     parser.add_argument('--epochs', type=int, default=100, metavar='N', help='number of epochs to train')
-    parser.add_argument('--host', type=str, default='134.209.251.186', help='database host')
+    parser.add_argument('--host', type=str, default='35.204.0.240', help='database host')
     parser.add_argument('-u', type=str, default='neo4j', help='database user')
     parser.add_argument('-p', type=str, help='database password')
 
@@ -148,35 +146,55 @@ def main():
     embed_dim = args.embed_dim
     
     host = args.host
-    user = args.user
-    password = args.password
+    user = args.u
+    password = args.p
     driver = GraphDatabase.driver(f'bolt://{host}:7687', auth=(user, password))
 
     trainset = Neo4jDataset(driver, Neo4jQuery(
         'MATCH (u: User)-[r:Like|Retweet|Reply|RetweetComment|Seen]->(t:Tweet)',
-        'RETURN DISTINCT u.id as u, t.id as t, \
+        'RETURN DISTINCT id(u) as u, id(t) as t, \
             [exists((u)-[:Like]->(t)), exists((u)-[:Retweet]->(t)), exists((u)-[:Reply]->(t)), exists((u)-[:RetweetComment]->(t)) ]'
-    ), 64)
+    ), 64, count_all=False)
 
     # SHOULD BE REPLACED WITH REAL TEST SET
     testset = Neo4jDataset(driver, Neo4jQuery(
-    'MATCH (u: User)-[r:Like|Retweet|Reply|RetweetComment|Seen]->(t:Tweet)',
-    'RETURN DISTINCT u.id as u, t.id as t, \
-        [exists((u)-[:Like]->(t)), exists((u)-[:Retweet]->(t)), exists((u)-[:Reply]->(t)), exists((u)-[:RetweetComment]->(t)) ]'
-    ), 64)
-
-    train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
-    test_loader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=True)
+        'MATCH (u: User)-[r:Like|Retweet|Reply|RetweetComment|Seen]->(t:Tweet)',
+        'RETURN DISTINCT id(u) as u, id(t) as t, \
+            [exists((u)-[:Like]->(t)), exists((u)-[:Retweet]->(t)), exists((u)-[:Reply]->(t)), exists((u)-[:RetweetComment]->(t)) ]'
+    ), 64, count_all=False)
+    
+    log.info("Train Loader")
+    train_loader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size) # shuffle=True
+    log.info("Test Loader")
+    test_loader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size) # shuffle=True
 
     db = driver.session()
-    num_users = [r.values() for r in db.run("MATCH (u:User) RETURN COUNT(u)")][0][0]
-    num_items = [r.values() for r in db.run("MATCH (t:Tweet) RETURN COUNT(t)")][0][0]
+    
+    num_users, max_user_id, min_user_id = 45964681, 46017045, 0
+    # num_users, max_user_id, min_user_id = [r.values() for r in db.run("MATCH (u:User) RETURN COUNT(u), MAX(id(u)), MIN(id(u))")][0][0]
+    log.info("#Users = {}".format(num_users))
+    log.warn("Precomputed values")
+    
+    num_items, max_item_id, min_item_id = 326769765, 372735814, 45882961
+    #num_items, max_item_id, min_item_id = [r.values() for r in db.run("MATCH (t:Tweet) RETURN COUNT(t), MAX(id(t)), MIN(id(t))")][0][0]
+    log.info("#Items = {}".format(num_items))
+    log.warn("Precomputed values")
+
     num_ratings = 16
     db.close()
+    
+    # TODO : Use embeddings more effectively to not waist memory usage
+    u2e = nn.Embedding(max_user_id + 1, embed_dim).to(device)
+    log.info("u2e {}x{} embeddings initialized".format(max_user_id + 1, embed_dim))
+    log.warn("Use embeddings more effectively to not waist memory usage")
 
-    u2e = nn.Embedding(num_users, embed_dim).to(device)
-    v2e = nn.Embedding(num_items, embed_dim).to(device)
+    # TODO : Use embeddings more effectively to not waist memory usage
+    v2e = nn.Embedding(max_item_id + 1, embed_dim).to(device)
+    log.info("v2e {}x{} embeddings initialized".format(max_item_id + 1, embed_dim))
+    log.warn("Use embeddings more effectively to not waist memory usage")
+
     r2e = nn.Embedding(num_ratings, embed_dim).to(device)
+    log.info("r2e {}x{} embeddings initialized".format(num_ratings, embed_dim))
 
     # user feature
     # features: item * rating
@@ -189,7 +207,7 @@ def main():
 
     # item feature: user * rating
     agg_v_history = UV_Aggregator(v2e, r2e, u2e, embed_dim, cuda=device, uv=False)
-    enc_v_history = UV_Encoder(v2e, driver.session(), embed_dim, agg_v_history, cuda=device, uv=False)
+    enc_v_history = UV_Encoder(driver.session(), v2e, embed_dim, agg_v_history, cuda=device, uv=False)
 
     # model
     graphrec = GraphRec(enc_u, enc_v_history, r2e).to(device)

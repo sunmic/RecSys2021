@@ -1,10 +1,7 @@
 import torch
 import torch.nn as nn
-from torch.autograd import Variable
-import numpy as np
-import random
-from Attention import Attention
 
+from Attention import Attention
 
 class Social_Aggregator(nn.Module):
     """
@@ -25,8 +22,8 @@ class Social_Aggregator(nn.Module):
         for i in range(len(nodes)):
             tmp_adj = to_neighs[i]
             num_neighs = len(tmp_adj)
-            # 
-            e_u = self.u2e.weight[list(tmp_adj)] # fast: user embedding 
+
+            e_u = self.u2e.weight[tmp_adj] # fast: user embedding 
             #slow: item-space user latent factor (item aggregation)
             #feature_neigbhors = self.features(torch.LongTensor(list(tmp_adj)).to(self.device))
             #e_u = torch.t(feature_neigbhors)

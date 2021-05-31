@@ -1,9 +1,6 @@
 transformers
 jupyter
-streamlit
-neo4j
 numpy
-streamlit
-transformers
 neo4j
 torch
+scikit-learn
