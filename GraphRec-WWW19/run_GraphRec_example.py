@@ -94,7 +94,7 @@ def train(model, device, train_loader, optimizer, epoch, best_rmse, best_mae):
         
         # batch_nodes_u = Tensor([int(x, 16) for x in batch_nodes_u])
         # batch_nodes_v = Tensor([int(x, 16) for x in batch_nodes_v])
-        labels_list = stack(labels_list).t().float()
+        labels_list = stack(labels_list).t().half()
         
         optimizer.zero_grad()
         loss = model.loss(batch_nodes_u.to(device), batch_nodes_v.to(device), labels_list.to(device))
@@ -202,8 +202,7 @@ def main():
     embed_weight = torch.zeros(num_embeddings, embedding_dim, dtype=torch.float16).to(device)
     torch.nn.init.normal_(embed_weight)
     uv2e = nn.Embedding(num_embeddings, embedding_dim, _weight=embed_weight).to(device, dtype=torch.float16)
-    # log.warn("Now next large type conversion... it may crash")
-    # uv2e32 = uv2e.float()
+
     log.info("uv2e {}x{} embeddings initialized".format(max_item_id + 1, embed_dim))
     log.warn("Use embeddings more effectively to not waist memory usage")
 
