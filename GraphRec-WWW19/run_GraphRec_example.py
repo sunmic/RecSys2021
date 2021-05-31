@@ -197,27 +197,29 @@ def main():
     # v2e = nn.Embedding(max_item_id + 1, embed_dim).to(device)
 
     uv2e = nn.Embedding(max_item_id + 1, embed_dim).to(device, dtype=torch.float16) 
+    uv2e32 = uv2e.float()
     log.info("uv2e {}x{} embeddings initialized".format(max_item_id + 1, embed_dim))
     log.warn("Use embeddings more effectively to not waist memory usage")
 
-    r2e = nn.Embedding(num_ratings, embed_dim).to(device)
+    r2e = nn.Embedding(num_ratings, embed_dim).to(device, dtype=torch.float16)
+    r2e32 = r2e.float()
     log.info("r2e {}x{} embeddings initialized".format(num_ratings, embed_dim))
 
     # user feature
     # features: item * rating
-    agg_u_history = UV_Aggregator(uv2e, r2e, uv2e, embed_dim, cuda=device, uv=True)
-    enc_u_history = UV_Encoder(driver.session(), uv2e, embed_dim, agg_u_history, cuda=device, uv=True)
+    agg_u_history = UV_Aggregator(uv2e32, r2e32, uv2e32, embed_dim, cuda=device, uv=True)
+    enc_u_history = UV_Encoder(driver.session(), uv2e32, embed_dim, agg_u_history, cuda=device, uv=True)
     # neighobrs
-    agg_u_social = Social_Aggregator(lambda nodes: enc_u_history(nodes).t(), uv2e, embed_dim, cuda=device)
+    agg_u_social = Social_Aggregator(lambda nodes: enc_u_history(nodes).t(), uv2e32, embed_dim, cuda=device)
     enc_u = Social_Encoder(driver.session(), lambda nodes: enc_u_history(nodes).t(), embed_dim, agg_u_social,
                            base_model=enc_u_history, cuda=device)
 
     # item feature: user * rating
-    agg_v_history = UV_Aggregator(uv2e, r2e, uv2e, embed_dim, cuda=device, uv=False)
-    enc_v_history = UV_Encoder(driver.session(), uv2e, embed_dim, agg_v_history, cuda=device, uv=False)
+    agg_v_history = UV_Aggregator(uv2e32, r2e32, uv2e32, embed_dim, cuda=device, uv=False)
+    enc_v_history = UV_Encoder(driver.session(), uv2e32, embed_dim, agg_v_history, cuda=device, uv=False)
 
     # model
-    graphrec = GraphRec(enc_u, enc_v_history, r2e).to(device)
+    graphrec = GraphRec(enc_u, enc_v_history, r2e32).to(device)
     optimizer = torch.optim.RMSprop(graphrec.parameters(), lr=args.lr, alpha=0.9)
 
     best_rmse = 9999.0
