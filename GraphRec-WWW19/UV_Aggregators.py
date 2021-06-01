@@ -17,9 +17,9 @@ class UV_Aggregator(nn.Module):
         self.u2e = u2e
         self.device = cuda
         self.embed_dim = embed_dim
-        self.w_r1 = nn.Linear(self.embed_dim * 2, self.embed_dim).half()
-        self.w_r2 = nn.Linear(self.embed_dim, self.embed_dim).half()
-        self.att = Attention(self.embed_dim).half()
+        self.w_r1 = nn.Linear(self.embed_dim * 2, self.embed_dim).to(self.device)
+        self.w_r2 = nn.Linear(self.embed_dim, self.embed_dim).to(self.device)
+        self.att = Attention(self.embed_dim).to(self.device)
 
     def r2id(self, ratings):
         ratings = np.array(ratings, dtype='int').astype('str')
@@ -27,7 +27,7 @@ class UV_Aggregator(nn.Module):
 
 
     def forward(self, nodes, history_uv, history_r):
-        embed_matrix = torch.empty(len(history_uv), self.embed_dim, dtype=torch.float16).to(self.device)
+        embed_matrix = torch.empty(len(history_uv), self.embed_dim).to(self.device)
 
         for i in range(len(history_uv)):
             history = history_uv[i]
@@ -36,14 +36,14 @@ class UV_Aggregator(nn.Module):
 
             if self.uv == True:
                 # user component
-                e_uv = self.v2e.weight[history]
-                uv_rep = self.u2e.weight[nodes[i]]
+                e_uv = self.v2e.weight[history].to(self.device)
+                uv_rep = self.u2e.weight[nodes[i]].to(self.device)
             else:
                 # item component
-                e_uv = self.u2e.weight[history]
-                uv_rep = self.v2e.weight[nodes[i]]
+                e_uv = self.u2e.weight[history].to(self.device)
+                uv_rep = self.v2e.weight[nodes[i]].to(self.device)
 
-            e_r = self.r2e.weight[tmp_label]
+            e_r = self.r2e.weight[tmp_label].to(self.device)
             x = torch.cat((e_uv, e_r), 1)
             x = F.relu(self.w_r1(x))
             o_history = F.relu(self.w_r2(x))

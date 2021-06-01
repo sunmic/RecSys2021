@@ -15,7 +15,7 @@ class Social_Encoder(nn.Module):
             self.base_model = base_model
         self.embed_dim = embed_dim
         self.device = cuda
-        self.linear1 = nn.Linear(2 * self.embed_dim, self.embed_dim).half()
+        self.linear1 = nn.Linear(2 * self.embed_dim, self.embed_dim).to(self.device)
 
     def forward(self, nodes):
         to_neighs = []
@@ -26,7 +26,7 @@ class Social_Encoder(nn.Module):
             to_neighs.append(neighs)
         neigh_feats = self.aggregator.forward(nodes, to_neighs)  # user-user network
 
-        self_feats = self.features(torch.LongTensor(nodes.cpu().numpy())).to(self.device, dtype=torch.float16)
+        self_feats = self.features(torch.LongTensor(nodes.cpu().numpy())).to(self.device)
         self_feats = self_feats.t()
         
         # self-connection could be considered.

@@ -3,6 +3,8 @@ import torch.nn as nn
 from clearml import Task
 from torch import  stack
 import numpy as np
+from tqdm import tqdm
+
 from UV_Encoders import UV_Encoder
 from UV_Aggregators import UV_Aggregator
 from Social_Encoders import Social_Encoder
@@ -39,27 +41,28 @@ If you use this code, please cite our paper:
 
 class GraphRec(nn.Module):
 
-    def __init__(self, enc_u, enc_v_history, r2e):
+    def __init__(self, enc_u, enc_v_history, r2e, cuda='cpu'):
         super(GraphRec, self).__init__()
+        self.device = cuda
         self.enc_u = enc_u
         self.enc_v_history = enc_v_history
         self.embed_dim = enc_u.embed_dim
 
-        self.w_ur1 = nn.Linear(self.embed_dim, self.embed_dim).half()
-        self.w_ur2 = nn.Linear(self.embed_dim, self.embed_dim).half()
-        self.w_vr1 = nn.Linear(self.embed_dim, self.embed_dim).half()
-        self.w_vr2 = nn.Linear(self.embed_dim, self.embed_dim).half()
-        self.w_uv1 = nn.Linear(self.embed_dim * 2, self.embed_dim).half()
-        self.w_uv2 = nn.Linear(self.embed_dim, 16).half()
+        self.w_ur1 = nn.Linear(self.embed_dim, self.embed_dim).to(self.device)
+        self.w_ur2 = nn.Linear(self.embed_dim, self.embed_dim).to(self.device)
+        self.w_vr1 = nn.Linear(self.embed_dim, self.embed_dim).to(self.device)
+        self.w_vr2 = nn.Linear(self.embed_dim, self.embed_dim).to(self.device)
+        self.w_uv1 = nn.Linear(self.embed_dim * 2, self.embed_dim).to(self.device)
+        self.w_uv2 = nn.Linear(self.embed_dim, 16).to(self.device)
     
-        self.w_uv3 = nn.Linear(16, 4).half()
+        self.w_uv3 = nn.Linear(16, 4).to(self.device)
         self.criterion = nn.BCELoss()
     
         self.r2e = r2e
-        self.bn1 = nn.BatchNorm1d(self.embed_dim, momentum=0.5).half()
-        self.bn2 = nn.BatchNorm1d(self.embed_dim, momentum=0.5).half()
-        self.bn3 = nn.BatchNorm1d(self.embed_dim, momentum=0.5).half()
-        self.bn4 = nn.BatchNorm1d(16, momentum=0.5).half()
+        self.bn1 = nn.BatchNorm1d(self.embed_dim, momentum=0.5).to(self.device)
+        self.bn2 = nn.BatchNorm1d(self.embed_dim, momentum=0.5).to(self.device)
+        self.bn3 = nn.BatchNorm1d(self.embed_dim, momentum=0.5).to(self.device)
+        self.bn4 = nn.BatchNorm1d(16, momentum=0.5).to(self.device)
 
     def forward(self, nodes_u, nodes_v):
         embeds_u = self.enc_u(nodes_u)
@@ -94,7 +97,7 @@ def train(model, device, train_loader, optimizer, epoch, best_rmse, best_mae):
         
         # batch_nodes_u = Tensor([int(x, 16) for x in batch_nodes_u])
         # batch_nodes_v = Tensor([int(x, 16) for x in batch_nodes_v])
-        labels_list = stack(labels_list).t().half()
+        labels_list = stack(labels_list).t().float()  # bool -> float conversion
         
         optimizer.zero_grad()
         loss = model.loss(batch_nodes_u.to(device), batch_nodes_v.to(device), labels_list.to(device))
@@ -141,7 +144,7 @@ def main():
     args = parser.parse_args()
 
     if args.execute_remotely:
-        task = Task.init(project_name='RecSys2021', task_name='run_GraphRec_example-half')
+        task = Task.init(project_name='RecSys2021', task_name='run_GraphRec_example-normal')
         task.execute_remotely("default")
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -180,16 +183,16 @@ def main():
     num_users, max_user_id, min_user_id = 45964681, 46017045, 0
     # num_users, max_user_id, min_user_id = [r.values() for r in db.run("MATCH (u:User) RETURN COUNT(u), MAX(id(u)), MIN(id(u))")][0][0]
     log.info("#Users = {}".format(num_users))
-    log.warn("Precomputed values")
+    log.warning("Precomputed values")
     
     num_items, max_item_id, min_item_id = 326769765, 372735814, 45882961
     #num_items, max_item_id, min_item_id = [r.values() for r in db.run("MATCH (t:Tweet) RETURN COUNT(t), MAX(id(t)), MIN(id(t))")][0][0]
     log.info("#Items = {}".format(num_items))
-    log.warn("Precomputed values")
+    log.warning("Precomputed values")
 
     num_ratings = 16
     db.close()
-    
+
     # TODO : Use embeddings more effectively to not waist memory usage
     # u2e = nn.Embedding(max_user_id + 1, embed_dim).to(device)
 
@@ -198,15 +201,16 @@ def main():
 
     #uv2e = nn.Embedding(max_item_id + 1, embed_dim).to(device, dtype=torch.float16)
     # workaround: nn.Embedding is unable to use non-default dtype
-    num_embeddings, embedding_dim = max_item_id + 1, embed_dim
-    embed_weight = torch.zeros(num_embeddings, embedding_dim, dtype=torch.float16).to(device)
-    torch.nn.init.normal_(embed_weight)
-    uv2e = nn.Embedding(num_embeddings, embedding_dim, _weight=embed_weight).to(device, dtype=torch.float16)
+    # num_embeddings, embedding_dim = max_item_id + 1, embed_dim
+    # embed_weight = torch.zeros(num_embeddings, embedding_dim, dtype=torch.float16).to(device)
+    # torch.nn.init.normal_(embed_weight)
+    # uv2e = nn.Embedding(num_embeddings, embedding_dim, _weight=embed_weight).to(device, dtype=torch.float16)
+    uv2e = nn.Embedding(max_item_id + 1, embed_dim).cpu()  # GPU memory is too small
 
     log.info("uv2e {}x{} embeddings initialized".format(max_item_id + 1, embed_dim))
-    log.warn("Use embeddings more effectively to not waist memory usage")
+    log.warning("Use embeddings more effectively to not waist memory usage")
 
-    r2e = nn.Embedding(num_ratings, embed_dim).to(device, dtype=torch.float16)
+    r2e = nn.Embedding(num_ratings, embed_dim).cpu()  #.to(device)
     log.info("r2e {}x{} embeddings initialized".format(num_ratings, embed_dim))
 
     # user feature
@@ -223,14 +227,14 @@ def main():
     enc_v_history = UV_Encoder(driver.session(), uv2e, embed_dim, agg_v_history, cuda=device, uv=False)
 
     # model
-    graphrec = GraphRec(enc_u, enc_v_history, r2e).to(device)
+    graphrec = GraphRec(enc_u, enc_v_history, r2e, device)  # .to(device) - replaced with parameter device
     optimizer = torch.optim.RMSprop(graphrec.parameters(), lr=args.lr, alpha=0.9)
 
     best_rmse = 9999.0
     best_mae = 9999.0
     endure_count = 0
 
-    for epoch in range(1, args.epochs + 1):
+    for epoch in tqdm(range(1, args.epochs + 1)):
 
         train(graphrec, device, train_loader, optimizer, epoch, best_rmse, best_mae)
         expected_rmse, mae = test(graphrec, device, test_loader)

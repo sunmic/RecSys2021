@@ -13,7 +13,7 @@ class UV_Encoder(nn.Module):
         self.aggregator = aggregator
         self.embed_dim = embed_dim
         self.device = cuda
-        self.linear1 = nn.Linear(2 * self.embed_dim, self.embed_dim).half()
+        self.linear1 = nn.Linear(2 * self.embed_dim, self.embed_dim).to(self.device)
 
         self.db = db
         if uv:
@@ -55,7 +55,7 @@ class UV_Encoder(nn.Module):
             tmp_history_r.append(r)
 
         neigh_feats = self.aggregator.forward(nodes, tmp_history_uv, tmp_history_r)  # user-item network
-        self_feats = self.features.weight[nodes]
+        self_feats = self.features.weight[nodes].to(self.device)
         # self-connection could be considered.
         combined = torch.cat([self_feats, neigh_feats], dim=1)
         combined = F.relu(self.linear1(combined))
