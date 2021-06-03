@@ -1,12 +1,7 @@
 import torch
 import torch.nn as nn
-from torch.nn import init
-from torch.autograd import Variable
 import pickle
 import numpy as np
-import time
-import random
-from collections import defaultdict
 from UV_Encoders import UV_Encoder
 from UV_Aggregators import UV_Aggregator
 from Social_Encoders import Social_Encoder
@@ -16,9 +11,9 @@ import torch.utils.data
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 from math import sqrt
-import datetime
 import argparse
 import os
+from clearml import Task
 
 """
 GraphRec: Graph Neural Networks for Social Recommendation. 
@@ -126,7 +121,12 @@ def main():
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR', help='learning rate')
     parser.add_argument('--test_batch_size', type=int, default=1000, metavar='N', help='input batch size for testing')
     parser.add_argument('--epochs', type=int, default=100, metavar='N', help='number of epochs to train')
+    parser.add_argument('--execute_remotely', type=bool, default=False, help='execute remotely as ClearML Task')
     args = parser.parse_args()
+
+    if args.execute_remotely:
+        task = Task.init(project_name='RecSys2021', task_name='GraphRec_on_toy_dataset')
+        task.execute_remotely("default")
 
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     use_cuda = False
