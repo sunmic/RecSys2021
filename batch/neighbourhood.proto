@@ -1,0 +1,27 @@
+syntax = "proto2";
+
+message Neighbourhood {
+    required int32 start = 1;
+    repeated int32 nodes = 2;
+    repeated int32 edge_index_source = 3;
+    repeated int32 edge_index_target = 4;
+    optional EdgeTypes edge_type = 5;
+
+    enum EdgeType {
+        SEEN            = 0;
+        LIKE            = 1;
+        RETWEET         = 2;
+        REPLY           = 3;
+        RETWEET_COMMENT = 4;
+        FOLLOW          = 5;
+        AUTHOR          = 6;
+    }
+
+    message EdgeTypes {
+        repeated EdgeType edge_type = 1;
+    }
+}
+
+message Batch {
+    repeated Neighbourhood elements = 1;
+}

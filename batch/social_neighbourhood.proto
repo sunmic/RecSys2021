@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+import "neighbourhood.proto";
+
+message SocialNetworkNeighbourhood {
+    required Neighbourhood social_neighbourhood = 1;
+    required Neighbourhood content_neighbourhood = 2;
+}
+
+message SocialNetworkBatch {
+    repeated SocialNetworkNeighbourhood elements = 1;
+}
