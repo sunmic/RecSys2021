@@ -345,7 +345,7 @@ func main() {
 	batchSize, nWorkers, contentSamples, levelSamples, tweetEdgelistPath, followEdgelistPath, destDir := parseArgs()
 
 	log.Printf("igraph thread safety flag: %v", C.IGRAPH_THREAD_SAFE)
-	if nWorkers > 0 && C.IGRAPH_THREAD_SAFE == 0 {
+	if nWorkers > 1 && C.IGRAPH_THREAD_SAFE == 0 {
 		log.Fatalln("igraph not build with thread safety. Recompile library or use nproc = 1. Failing.")
 	}
 
