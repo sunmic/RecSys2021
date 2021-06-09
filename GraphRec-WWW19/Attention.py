@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
+from torch.nn import init
+import numpy as np
+import random
 import torch.nn.functional as F
+
 
 class Attention(nn.Module):
     def __init__(self, embedding_dims):
