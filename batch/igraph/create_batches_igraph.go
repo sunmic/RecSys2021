@@ -1,6 +1,7 @@
 package main
 
 // #cgo pkg-config: igraph
+// #cgo LDFLAGS: -lm
 // #include <igraph.h>
 // #include <stdio.h>
 // #include "igraph_ext.h"
@@ -160,7 +161,10 @@ func (state *NNSampling) SampleNeighbourhood(graph *C.igraph_t, vertex int32, le
 func pushState(socialState *NNSampling, contentState *NNSampling, batch *models.SocialNetworkBatch) {
 	// create user neighbourhood
 	userNodes := make([]int32, 0, len(socialState.visited))
-	for vertex := range socialState.visited {
+	for vertex, present := range socialState.visited {
+		if !present {
+			continue
+		}
 		userNodes = append(userNodes, vertex)
 	}
 	sourcesCopy := make([]int32, len(socialState.sources))
@@ -177,7 +181,10 @@ func pushState(socialState *NNSampling, contentState *NNSampling, batch *models.
 
 	// create tweet neighbourhood
 	tweetNodes := make([]int32, 0, len(contentState.visited))
-	for vertex := range contentState.visited {
+	for vertex, present := range contentState.visited {
+		if !present {
+			continue
+		}
 		tweetNodes = append(tweetNodes, vertex)
 	}
 	sourcesCopy = make([]int32, len(contentState.sources))
@@ -188,8 +195,8 @@ func pushState(socialState *NNSampling, contentState *NNSampling, batch *models.
 	tweetNeighbourhood := models.Neighbourhood{
 		Start:           proto.Int32(contentState.startVertex),
 		Nodes:           tweetNodes,
-		EdgeIndexSource: contentState.sources,
-		EdgeIndexTarget: contentState.targets,
+		EdgeIndexSource: sourcesCopy,
+		EdgeIndexTarget: targetsCopy,
 	}
 
 	socialNeighbourhood := models.SocialNetworkNeighbourhood{
@@ -233,8 +240,13 @@ func (task *Task) GenerateNeighbourhoods(followerGraph *C.igraph_t, tweetsGraph 
 	var iteration int
 
 	for vertex := range channel {
+		socialState.startVertex = vertex
+		contentState.startVertex = vertex
 		socialState.SampleNeighbourhood(followerGraph, vertex, levelSamples, 0)
-		for socialVertex := range socialState.visited {
+		for socialVertex, present := range socialState.visited {
+			if !present {
+				continue
+			}
 			contentState.SampleImmediateNeighbourhood(tweetsGraph, socialVertex, contentSamples, true, true, false)
 			delete(contentState.visited, socialVertex)
 		}
@@ -244,7 +256,7 @@ func (task *Task) GenerateNeighbourhoods(followerGraph *C.igraph_t, tweetsGraph 
 		contentState.Reset()
 
 		if len(batch.Elements) == task.batchSize {
-			task.SaveBatch(batch, iteration, workIndex)
+			task.SaveBatch(batch, iteration+1, workIndex)
 			proto.Reset(batch)
 		}
 

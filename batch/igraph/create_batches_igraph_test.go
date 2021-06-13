@@ -32,6 +32,7 @@ func TestImmediateNeighbourhood(t *testing.T) {
 	}
 	samples := 4
 	for key, elements := range expected {
+		sampling.startVertex = key
 		sampling.SampleImmediateNeighbourhood(graph, key, samples, false, false, false)
 		//sampling.Print()
 
@@ -62,7 +63,19 @@ func TestImmediateNeighbourhood(t *testing.T) {
 			}
 		}
 
+		if len(sampling.visited) != 5 {
+			t.Errorf("Visited map length is %v but should be %v (%v)", len(sampling.visited), samples+1, sampling.visited)
+		}
+
+		if !sampling.visited[key] {
+			t.Errorf("Initial vertex not visited: %v", key)
+		}
+
 		sampling.Reset()
+
+		if len(sampling.visited) != 0 {
+			t.Errorf("Visited map should be empty after reset, but has %v elements (%v)", len(sampling.visited), sampling.visited)
+		}
 	}
 
 	DestroyGraph(graph)
@@ -84,7 +97,8 @@ func TestNeighbourhood(t *testing.T) {
 
 	levelSamples := []int{5, 3}
 	sampling := NNSampling{
-		visited: make(map[int32]bool),
+		startVertex: 0,
+		visited:     make(map[int32]bool),
 	}
 
 	sampling.SampleNeighbourhood(graph, 0, levelSamples, 0)
@@ -108,5 +122,9 @@ func TestNeighbourhood(t *testing.T) {
 
 	if len(sampling.visited) != 21 {
 		t.Fatalf("Visited map has invalid size: expected %v, got %v (%v)", 20, len(sampling.visited), sampling.visited)
+	}
+
+	if !sampling.visited[0] {
+		t.Errorf("Initial vertex not visited: %v", 0)
 	}
 }
