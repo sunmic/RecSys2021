@@ -5,20 +5,18 @@ message Neighbourhood {
     repeated int32 nodes = 2;
     repeated int32 edge_index_source = 3;
     repeated int32 edge_index_target = 4;
-    optional EdgeTypes edge_type = 5;
+    optional EdgeTypes edge_types = 5; 
 
-    enum EdgeType {
-        SEEN            = 0;
-        LIKE            = 1;
-        RETWEET         = 2;
-        REPLY           = 3;
-        RETWEET_COMMENT = 4;
-        FOLLOW          = 5;
-        AUTHOR          = 6;
+    message EdgeType {
+        required bool seen = 1;
+        required bool like = 2;
+        required bool reply = 3;
+        required bool retweet = 4;
+        required bool retweet_comment = 5;
     }
 
     message EdgeTypes {
-        repeated EdgeType edge_type = 1;
+        repeated EdgeType attributes = 1;
     }
 }
 

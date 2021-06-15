@@ -33,7 +33,7 @@ func TestImmediateNeighbourhood(t *testing.T) {
 	samples := 4
 	for key, elements := range expected {
 		sampling.startVertex = key
-		sampling.SampleImmediateNeighbourhood(graph, key, samples, false, false, false)
+		sampling.SampleImmediateNeighbourhood(graph, key, samples, false, false, false, false)
 		//sampling.Print()
 
 		if len(sampling.sources) != 4 {

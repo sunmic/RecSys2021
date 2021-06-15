@@ -19,61 +19,70 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   syntax='proto2',
   serialized_options=None,
   create_key=_descriptor._internal_create_key,
-  serialized_pb=b'\n\x13neighbourhood.proto\"\xae\x02\n\rNeighbourhood\x12\r\n\x05start\x18\x01 \x02(\x05\x12\r\n\x05nodes\x18\x02 \x03(\x05\x12\x19\n\x11\x65\x64ge_index_source\x18\x03 \x03(\x05\x12\x19\n\x11\x65\x64ge_index_target\x18\x04 \x03(\x05\x12+\n\tedge_type\x18\x05 \x01(\x0b\x32\x18.Neighbourhood.EdgeTypes\x1a\x37\n\tEdgeTypes\x12*\n\tedge_type\x18\x01 \x03(\x0e\x32\x17.Neighbourhood.EdgeType\"c\n\x08\x45\x64geType\x12\x08\n\x04SEEN\x10\x00\x12\x08\n\x04LIKE\x10\x01\x12\x0b\n\x07RETWEET\x10\x02\x12\t\n\x05REPLY\x10\x03\x12\x13\n\x0fRETWEET_COMMENT\x10\x04\x12\n\n\x06\x46OLLOW\x10\x05\x12\n\n\x06\x41UTHOR\x10\x06\")\n\x05\x42\x61tch\x12 \n\x08\x65lements\x18\x01 \x03(\x0b\x32\x0e.Neighbourhood'
+  serialized_pb=b'\n\x13neighbourhood.proto\"\xac\x02\n\rNeighbourhood\x12\r\n\x05start\x18\x01 \x02(\x05\x12\r\n\x05nodes\x18\x02 \x03(\x05\x12\x19\n\x11\x65\x64ge_index_source\x18\x03 \x03(\x05\x12\x19\n\x11\x65\x64ge_index_target\x18\x04 \x03(\x05\x12,\n\nedge_types\x18\x05 \x01(\x0b\x32\x18.Neighbourhood.EdgeTypes\x1a_\n\x08\x45\x64geType\x12\x0c\n\x04seen\x18\x01 \x02(\x08\x12\x0c\n\x04like\x18\x02 \x02(\x08\x12\r\n\x05reply\x18\x03 \x02(\x08\x12\x0f\n\x07retweet\x18\x04 \x02(\x08\x12\x17\n\x0fretweet_comment\x18\x05 \x02(\x08\x1a\x38\n\tEdgeTypes\x12+\n\nattributes\x18\x01 \x03(\x0b\x32\x17.Neighbourhood.EdgeType\")\n\x05\x42\x61tch\x12 \n\x08\x65lements\x18\x01 \x03(\x0b\x32\x0e.Neighbourhood'
 )
 
 
 
-_NEIGHBOURHOOD_EDGETYPE = _descriptor.EnumDescriptor(
+
+_NEIGHBOURHOOD_EDGETYPE = _descriptor.Descriptor(
   name='EdgeType',
   full_name='Neighbourhood.EdgeType',
   filename=None,
   file=DESCRIPTOR,
-  create_key=_descriptor._internal_create_key,
-  values=[
-    _descriptor.EnumValueDescriptor(
-      name='SEEN', index=0, number=0,
-      serialized_options=None,
-      type=None,
-      create_key=_descriptor._internal_create_key),
-    _descriptor.EnumValueDescriptor(
-      name='LIKE', index=1, number=1,
-      serialized_options=None,
-      type=None,
-      create_key=_descriptor._internal_create_key),
-    _descriptor.EnumValueDescriptor(
-      name='RETWEET', index=2, number=2,
-      serialized_options=None,
-      type=None,
-      create_key=_descriptor._internal_create_key),
-    _descriptor.EnumValueDescriptor(
-      name='REPLY', index=3, number=3,
-      serialized_options=None,
-      type=None,
-      create_key=_descriptor._internal_create_key),
-    _descriptor.EnumValueDescriptor(
-      name='RETWEET_COMMENT', index=4, number=4,
-      serialized_options=None,
-      type=None,
-      create_key=_descriptor._internal_create_key),
-    _descriptor.EnumValueDescriptor(
-      name='FOLLOW', index=5, number=5,
-      serialized_options=None,
-      type=None,
-      create_key=_descriptor._internal_create_key),
-    _descriptor.EnumValueDescriptor(
-      name='AUTHOR', index=6, number=6,
-      serialized_options=None,
-      type=None,
-      create_key=_descriptor._internal_create_key),
-  ],
   containing_type=None,
+  create_key=_descriptor._internal_create_key,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='seen', full_name='Neighbourhood.EdgeType.seen', index=0,
+      number=1, type=8, cpp_type=7, label=2,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='like', full_name='Neighbourhood.EdgeType.like', index=1,
+      number=2, type=8, cpp_type=7, label=2,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='reply', full_name='Neighbourhood.EdgeType.reply', index=2,
+      number=3, type=8, cpp_type=7, label=2,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='retweet', full_name='Neighbourhood.EdgeType.retweet', index=3,
+      number=4, type=8, cpp_type=7, label=2,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+    _descriptor.FieldDescriptor(
+      name='retweet_comment', full_name='Neighbourhood.EdgeType.retweet_comment', index=4,
+      number=5, type=8, cpp_type=7, label=2,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
   serialized_options=None,
-  serialized_start=227,
-  serialized_end=326,
+  is_extendable=False,
+  syntax='proto2',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=171,
+  serialized_end=266,
 )
-_sym_db.RegisterEnumDescriptor(_NEIGHBOURHOOD_EDGETYPE)
-
 
 _NEIGHBOURHOOD_EDGETYPES = _descriptor.Descriptor(
   name='EdgeTypes',
@@ -84,8 +93,8 @@ _NEIGHBOURHOOD_EDGETYPES = _descriptor.Descriptor(
   create_key=_descriptor._internal_create_key,
   fields=[
     _descriptor.FieldDescriptor(
-      name='edge_type', full_name='Neighbourhood.EdgeTypes.edge_type', index=0,
-      number=1, type=14, cpp_type=8, label=3,
+      name='attributes', full_name='Neighbourhood.EdgeTypes.attributes', index=0,
+      number=1, type=11, cpp_type=10, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -102,8 +111,8 @@ _NEIGHBOURHOOD_EDGETYPES = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=170,
-  serialized_end=225,
+  serialized_start=268,
+  serialized_end=324,
 )
 
 _NEIGHBOURHOOD = _descriptor.Descriptor(
@@ -143,7 +152,7 @@ _NEIGHBOURHOOD = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR,  create_key=_descriptor._internal_create_key),
     _descriptor.FieldDescriptor(
-      name='edge_type', full_name='Neighbourhood.edge_type', index=4,
+      name='edge_types', full_name='Neighbourhood.edge_types', index=4,
       number=5, type=11, cpp_type=10, label=1,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
@@ -152,9 +161,8 @@ _NEIGHBOURHOOD = _descriptor.Descriptor(
   ],
   extensions=[
   ],
-  nested_types=[_NEIGHBOURHOOD_EDGETYPES, ],
+  nested_types=[_NEIGHBOURHOOD_EDGETYPE, _NEIGHBOURHOOD_EDGETYPES, ],
   enum_types=[
-    _NEIGHBOURHOOD_EDGETYPE,
   ],
   serialized_options=None,
   is_extendable=False,
@@ -163,7 +171,7 @@ _NEIGHBOURHOOD = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=24,
-  serialized_end=326,
+  serialized_end=324,
 )
 
 
@@ -194,20 +202,27 @@ _BATCH = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=328,
-  serialized_end=369,
+  serialized_start=326,
+  serialized_end=367,
 )
 
-_NEIGHBOURHOOD_EDGETYPES.fields_by_name['edge_type'].enum_type = _NEIGHBOURHOOD_EDGETYPE
-_NEIGHBOURHOOD_EDGETYPES.containing_type = _NEIGHBOURHOOD
-_NEIGHBOURHOOD.fields_by_name['edge_type'].message_type = _NEIGHBOURHOOD_EDGETYPES
 _NEIGHBOURHOOD_EDGETYPE.containing_type = _NEIGHBOURHOOD
+_NEIGHBOURHOOD_EDGETYPES.fields_by_name['attributes'].message_type = _NEIGHBOURHOOD_EDGETYPE
+_NEIGHBOURHOOD_EDGETYPES.containing_type = _NEIGHBOURHOOD
+_NEIGHBOURHOOD.fields_by_name['edge_types'].message_type = _NEIGHBOURHOOD_EDGETYPES
 _BATCH.fields_by_name['elements'].message_type = _NEIGHBOURHOOD
 DESCRIPTOR.message_types_by_name['Neighbourhood'] = _NEIGHBOURHOOD
 DESCRIPTOR.message_types_by_name['Batch'] = _BATCH
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 Neighbourhood = _reflection.GeneratedProtocolMessageType('Neighbourhood', (_message.Message,), {
+
+  'EdgeType' : _reflection.GeneratedProtocolMessageType('EdgeType', (_message.Message,), {
+    'DESCRIPTOR' : _NEIGHBOURHOOD_EDGETYPE,
+    '__module__' : 'neighbourhood_pb2'
+    # @@protoc_insertion_point(class_scope:Neighbourhood.EdgeType)
+    })
+  ,
 
   'EdgeTypes' : _reflection.GeneratedProtocolMessageType('EdgeTypes', (_message.Message,), {
     'DESCRIPTOR' : _NEIGHBOURHOOD_EDGETYPES,
@@ -220,6 +235,7 @@ Neighbourhood = _reflection.GeneratedProtocolMessageType('Neighbourhood', (_mess
   # @@protoc_insertion_point(class_scope:Neighbourhood)
   })
 _sym_db.RegisterMessage(Neighbourhood)
+_sym_db.RegisterMessage(Neighbourhood.EdgeType)
 _sym_db.RegisterMessage(Neighbourhood.EdgeTypes)
 
 Batch = _reflection.GeneratedProtocolMessageType('Batch', (_message.Message,), {

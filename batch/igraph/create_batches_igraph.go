@@ -25,6 +25,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const WeightAttributeName = "weight"
+
 func booltoint(in bool) C.int {
 	if in {
 		return C.int(1)
@@ -52,6 +54,7 @@ type NNSampling struct {
 	visited     map[int32]bool
 	sources     []int32
 	targets     []int32
+	edgeTypes   []int32
 	startVertex int32
 	// Temporary storage
 	neighbourhoodBuffer []int32
@@ -62,6 +65,9 @@ func (sampling *NNSampling) Print() {
 	fmt.Printf("Visited: %v\n", sampling.visited)
 	fmt.Printf("Sources: %v\n", sampling.sources)
 	fmt.Printf("Targets: %v\n", sampling.targets)
+	if len(sampling.edgeTypes) != 0 {
+		fmt.Printf("Edge types: %v\n", sampling.edgeTypes)
+	}
 	fmt.Printf("Buffer:  %v\n", sampling.neighbourhoodBuffer)
 	fmt.Printf("Mask:    %v\n", sampling.randomMask)
 }
@@ -70,13 +76,16 @@ func (sampling *NNSampling) Reset() {
 	sampling.visited = make(map[int32]bool)
 	sampling.sources = sampling.sources[:0]
 	sampling.targets = sampling.targets[:0]
+	sampling.edgeTypes = sampling.edgeTypes[:0]
 	sampling.neighbourhoodBuffer = sampling.neighbourhoodBuffer[:0]
 	sampling.randomMask = sampling.randomMask[:0]
 }
 
-func (state *NNSampling) SampleImmediateNeighbourhood(graph *C.igraph_t, vertex int32, samples int, duplicates bool, clearBuffers bool, allEdges bool) {
+func (state *NNSampling) SampleImmediateNeighbourhood(graph *C.igraph_t, vertex int32, samples int, duplicates bool, clearBuffers bool, allEdges bool, weights bool) {
 	var vs C.igraph_vs_t
 	var vit C.igraph_vit_t
+	var eid C.igraph_integer_t
+	var eval C.igraph_real_t
 
 	// set self as visited
 	state.visited[vertex] = true
@@ -89,12 +98,15 @@ func (state *NNSampling) SampleImmediateNeighbourhood(graph *C.igraph_t, vertex 
 		mode = C.IGRAPH_OUT
 	}
 
+	// check if weight attribute is present
+	var hasWeightAttribute = weights
+
 	// find non-visited neighbours using igraph
 	C.igraph_vs_adj(&vs, C.int(vertex), mode)
 	C.igraph_vit_create(graph, vs, &vit)
 	for C.igraph_vit_end(&vit) == 0 {
 		adjVertex := int32(C.igraph_vit_get(&vit))
-		//fmt.Printf("Vertex %v\n", adjVertex)
+
 		if duplicates || !state.visited[adjVertex] {
 			state.neighbourhoodBuffer = append(state.neighbourhoodBuffer, adjVertex)
 		}
@@ -118,6 +130,13 @@ func (state *NNSampling) SampleImmediateNeighbourhood(graph *C.igraph_t, vertex 
 		state.visited[adjVertex] = true
 		state.sources = append(state.sources, vertex)
 		state.targets = append(state.targets, adjVertex)
+		if hasWeightAttribute {
+			C.igraph_get_eid(graph, &eid, C.int(vertex), C.int(adjVertex), booltoint(true), booltoint(false))
+			if eid != -1 {
+				eval = C.igraph_edge_weight_attribute(graph, eid)
+				state.edgeTypes = append(state.edgeTypes, int32(eval))
+			}
+		}
 	}
 
 	if clearBuffers {
@@ -142,7 +161,7 @@ func (state *NNSampling) SampleNeighbourhood(graph *C.igraph_t, vertex int32, le
 
 	// sample immediate neighbours
 	samples := levelSamples[level]
-	state.SampleImmediateNeighbourhood(graph, vertex, samples, false, false, true)
+	state.SampleImmediateNeighbourhood(graph, vertex, samples, false, false, true, false)
 
 	// sample neighbourhoods of neighbours if needed
 	if level+1 < len(levelSamples) {
@@ -191,12 +210,26 @@ func pushState(socialState *NNSampling, contentState *NNSampling, batch *models.
 	copy(sourcesCopy, contentState.sources)
 	targetsCopy = make([]int32, len(contentState.targets))
 	copy(targetsCopy, contentState.targets)
+	var edgeTypes *models.Neighbourhood_EdgeTypes = nil
+	if len(contentState.edgeTypes) != 0 {
+		edgeTypes = &models.Neighbourhood_EdgeTypes{}
+		for _, edgeAttr := range contentState.edgeTypes {
+			attributes := &models.Neighbourhood_EdgeType{}
+			attributes.Seen = proto.Bool((edgeAttr & 0x1) != 0)
+			attributes.Like = proto.Bool((edgeAttr & 0x2) != 0)
+			attributes.Reply = proto.Bool((edgeAttr & 0x4) != 0)
+			attributes.Retweet = proto.Bool((edgeAttr & 0x8) != 0)
+			attributes.RetweetComment = proto.Bool((edgeAttr & 0x10) != 0)
+			edgeTypes.Attributes = append(edgeTypes.Attributes, attributes)
+		}
+	}
 
 	tweetNeighbourhood := models.Neighbourhood{
 		Start:           proto.Int32(contentState.startVertex),
 		Nodes:           tweetNodes,
 		EdgeIndexSource: sourcesCopy,
 		EdgeIndexTarget: targetsCopy,
+		EdgeTypes:       edgeTypes,
 	}
 
 	socialNeighbourhood := models.SocialNetworkNeighbourhood{
@@ -207,10 +240,11 @@ func pushState(socialState *NNSampling, contentState *NNSampling, batch *models.
 }
 
 type Task struct {
-	wg        *sync.WaitGroup
-	pbar      *pb.ProgressBar
-	batchSize int
-	destDir   string
+	wg           *sync.WaitGroup
+	pbar         *pb.ProgressBar
+	batchSize    int
+	useEdgeTypes bool
+	destDir      string
 }
 
 func (task *Task) SaveBatch(batch *models.SocialNetworkBatch, iteration int, work int) bool {
@@ -247,8 +281,8 @@ func (task *Task) GenerateNeighbourhoods(followerGraph *C.igraph_t, tweetsGraph 
 			if !present {
 				continue
 			}
-			contentState.SampleImmediateNeighbourhood(tweetsGraph, socialVertex, contentSamples, true, true, false)
-			delete(contentState.visited, socialVertex)
+			contentState.SampleImmediateNeighbourhood(tweetsGraph, socialVertex, contentSamples, true, true, false, task.useEdgeTypes)
+			contentState.visited[socialVertex] = false
 		}
 
 		pushState(&socialState, &contentState, batch)
@@ -294,7 +328,7 @@ func (task *Task) SubmitNodes(followerGraph *C.igraph_t, channel chan<- int32) {
 	close(channel)
 }
 
-func parseGraph(path string, directed bool) *C.igraph_t {
+func parseGraph(path string, nCol bool, directed bool) *C.igraph_t {
 	file, err := os.Open(path)
 	if err != nil {
 		log.Fatal(err)
@@ -302,7 +336,15 @@ func parseGraph(path string, directed bool) *C.igraph_t {
 
 	var graph *C.igraph_t = C.igraph_alloc()
 	fstruct := C.fdopen(C.int(file.Fd()), C.CString("r"))
-	errCode := C.igraph_read_graph_edgelist(graph, fstruct, 0, booltoint(directed))
+
+	var errCode C.int
+	if nCol {
+		C.igraph_set_attribute_table(&C.igraph_cattribute_table)
+		errCode = C.igraph_read_graph_ncol(graph, fstruct, nil, booltoint(false), C.IGRAPH_ADD_WEIGHTS_YES, booltoint(directed))
+	} else {
+		errCode = C.igraph_read_graph_edgelist(graph, fstruct, 0, booltoint(directed))
+	}
+
 	if errCode == C.IGRAPH_PARSEERROR {
 		log.Fatal(err)
 	}
@@ -329,7 +371,7 @@ func parseLevelSamples(s string) []int {
 	return levels
 }
 
-func parseArgs() (int, int, int, []int, string, string, string) {
+func parseArgs() (int, int, bool, int, []int, string, string, string) {
 	flag.Usage = func() {
 		fmt.Printf("Usage: %v follow-edgelist tweet-edgelist dest-dir\n", os.Args[0])
 		flag.PrintDefaults()
@@ -338,6 +380,7 @@ func parseArgs() (int, int, int, []int, string, string, string) {
 	nWorkers := flag.Int("nproc", 1, "Number of workers")
 	contentSamples := flag.Int("c", 20, "Number of content samples per node")
 	levelSamplesRaw := flag.String("s", "10,5", "Number of social samples at each level (comma separated)")
+	ncolFormat := flag.Bool("ncol", false, "Adjacency lists are in ncol format. Weight will be taken into account")
 
 	flag.Parse()
 	if flag.NArg() < 3 {
@@ -350,11 +393,11 @@ func parseArgs() (int, int, int, []int, string, string, string) {
 	destDir := flag.Arg(2)
 	levelSamples := parseLevelSamples(*levelSamplesRaw)
 
-	return *batchSize, *nWorkers, *contentSamples, levelSamples, tweetEdgelistPath, followEdgelistPath, destDir
+	return *batchSize, *nWorkers, *ncolFormat, *contentSamples, levelSamples, tweetEdgelistPath, followEdgelistPath, destDir
 }
 
 func main() {
-	batchSize, nWorkers, contentSamples, levelSamples, tweetEdgelistPath, followEdgelistPath, destDir := parseArgs()
+	batchSize, nWorkers, ncolFormat, contentSamples, levelSamples, tweetEdgelistPath, followEdgelistPath, destDir := parseArgs()
 
 	log.Printf("igraph thread safety flag: %v", C.IGRAPH_THREAD_SAFE)
 	if nWorkers > 1 && C.IGRAPH_THREAD_SAFE == 0 {
@@ -362,15 +405,15 @@ func main() {
 	}
 
 	log.Println("Parsing tweets graph...")
-	tweetsGraph := parseGraph(tweetEdgelistPath, true)
+	tweetsGraph := parseGraph(tweetEdgelistPath, ncolFormat, true)
 	log.Println("Parsing followers graph...")
-	followersGraph := parseGraph(followEdgelistPath, false)
+	followersGraph := parseGraph(followEdgelistPath, false, false)
 
 	rand.Seed(time.Now().UnixNano())
 
 	var wg sync.WaitGroup
 	channel := make(chan int32)
-	task := Task{wg: &wg, batchSize: batchSize, destDir: destDir}
+	task := Task{wg: &wg, batchSize: batchSize, destDir: destDir, useEdgeTypes: ncolFormat}
 	go task.SubmitNodes(followersGraph, channel)
 	log.Printf("Starting %v workers", nWorkers)
 	for i := 0; i < nWorkers; i++ {

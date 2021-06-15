@@ -1,4 +1,5 @@
 #include "igraph_ext.h"
+#include <stdio.h>
 
 igraph_t* igraph_alloc() {
     igraph_t* pointer = malloc(sizeof(igraph_t));
@@ -15,4 +16,8 @@ int igraph_vit_get(igraph_vit_t* vit) {
 
 void igraph_vit_next(igraph_vit_t* vit) {
     IGRAPH_VIT_NEXT(*vit);
+}
+
+igraph_real_t igraph_edge_weight_attribute(igraph_t* graph, igraph_integer_t eid) {
+    return igraph_cattribute_EAN(graph, "weight", eid);
 }
