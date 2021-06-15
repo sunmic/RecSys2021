@@ -19,8 +19,14 @@ class RecSysData(Data):
             return self.x_users.size(0)
         if key == 'x_tweets':
             return self.x_tweets.size(0)
-        if key == 'ut_edge_index':
-            return torch.tensor([[self.x_users.size(0)], [self.x_tweets.size(0)]])
+        if key == 'ut_edges':
+            return torch.tensor([[self.x_users.size(0)], [self.x_tweets.size(0)]]) 
+        if key == 'ut_edge_index_gcn':
+            return self.x_tweets.size(0)    
+        if key == 'ut_edge_index_train':
+            return self.x_tweets.size(0)
+        if key == 'ut_edge_index_test':
+            return self.x_tweets.size(0)
         if key == 'f_edge_index':
             return self.x_users.size(0)
         else:
@@ -95,7 +101,7 @@ class RecSysBatchDS(InMemoryDataset):
     #     return len(self.batch.elements)
 
     # def __getitem__(self, index) -> T_co:
-    def split_ut_edge_index(ut_edges, start_index, test_size=0.2, train_size=0.2):
+    def split_ut_edge_index(self, ut_edges, start_index, test_size=0.2, train_size=0.2):
         start_node_edge_index, = np.where(start_index == ut_edges[1, :])
 
         start_node_edge_index = np.random.permutation(start_node_edge_index)
@@ -152,7 +158,7 @@ class RecSysBatchDS(InMemoryDataset):
         
         # Split ut edge indices
         ut_edges = torch.tensor((fixed_ut_targets, fixed_ut_sources), dtype=torch.int64)
-        ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test = split_ut_edge_index(ut_edges, data.start_index, train_size=0.2, test_size=0.2)
+        ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test = self.split_ut_edge_index(ut_edges, data.start_index, train_size=0.2, test_size=0.2)
         data.ut_edges = ut_edges
         data.ut_edge_index_gcn = ut_edge_index_gcn
         data.ut_edge_index_train = ut_edge_index_train

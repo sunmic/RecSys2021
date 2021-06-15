@@ -73,14 +73,10 @@ class Net(pl.LightningModule):
         F.relu(h)
 
         # mlp, do whatever u want with it
-
-        # +====DANGER PLACE===
         h = h[start]
         train_tweet_index = user_tweet_edges[0, data.ut_edge_index_train]
         h = h.repeat(len(train_tweet_index), -1)
         h = torch.cat((h, data.x_tweets[train_tweet_index]), -1)   
-        # +===================
-        
         # F.sigmoid(h) BCEWithLogitsLoss - czy musimy dawać dodatkowo sigmoida ?
 
         return self.cls(h)
