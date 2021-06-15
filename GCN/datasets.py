@@ -5,7 +5,6 @@ import torch
 import neo4j
 from transformers import BertTokenizer, BertModel
 from tqdm import tqdm
-import numpy as np
 
 
 class RecSysData(Data):
@@ -110,9 +109,9 @@ class RecSysBatchDS(InMemoryDataset):
 
     # def __getitem__(self, index) -> T_co:
     def split_ut_edge_index(self, ut_edges, start_index, test_size=0.2, train_size=0.2):
-        start_node_edge_index, = np.where(start_index == ut_edges[1, :])
+        start_node_edge_index, = torch.where(start_index == ut_edges[1, :])
 
-        start_node_edge_index = np.random.permutation(start_node_edge_index)
+        start_node_edge_index = torch.random.permutation(start_node_edge_index)
         test_size = int(len(start_node_edge_index) * test_size)
         train_size = int(len(start_node_edge_index) * train_size)
 
