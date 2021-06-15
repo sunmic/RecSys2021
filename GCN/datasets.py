@@ -5,6 +5,7 @@ import torch
 import neo4j
 from transformers import BertTokenizer, BertModel
 from tqdm import tqdm
+import numpy as np
 
 
 class RecSysData(Data):
@@ -94,6 +95,19 @@ class RecSysBatchDS(InMemoryDataset):
     #     return len(self.batch.elements)
 
     # def __getitem__(self, index) -> T_co:
+    def split_ut_edge_index(ut_edges, start_index, test_size=0.2, train_size=0.2):
+        start_node_edge_index, = np.where(start_index == ut_edges[1, :])
+
+        start_node_edge_index = np.random.permutation(start_node_edge_index)
+        test_size = int(len(start_node_edge_index) * test_size)
+        train_size = int(len(start_node_edge_index) * train_size)
+
+        ut_edge_index_test = start_node_edge_index[:test_size]
+        ut_edge_index_train  = start_node_edge_index[test_size:train_size+test_size]
+        ut_edge_index_gcn = start_node_edge_index[train_size+test_size:]
+        
+        return ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test
+
     def data_item(self, index):
         nn = self.batch.elements[index]
         snn = nn.social_neighbourhood
@@ -124,8 +138,6 @@ class RecSysBatchDS(InMemoryDataset):
         fixed_f_targets = [user_nodes.index(v) for v in f_targets]
         fixed_ut_sources, fixed_ut_targets = [], []
         for s, t in zip(ut_sources, ut_targets):
-            if s >= len(user_nodes) or t >= len(tweet_nodes):
-                continue
             fixed_ut_sources.append(user_nodes.index(s))
             fixed_ut_targets.append(tweet_nodes.index(t))
 
@@ -136,11 +148,20 @@ class RecSysBatchDS(InMemoryDataset):
         data.x_users = users
         with torch.no_grad():
             data.x_tweets = self.embed(tweets, batch=8)
-        data.ut_edge_index = torch.tensor((fixed_ut_targets, fixed_ut_sources), dtype=torch.int64)
-        data.f_edge_index = torch.tensor((fixed_f_sources, fixed_f_targets), dtype=torch.int64)
+        
+        
+        # Split ut edge indices
+        ut_edges = torch.tensor((fixed_ut_targets, fixed_ut_sources), dtype=torch.int64)
+        ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test = split_ut_edge_index(ut_edges, data.start_index, train_size=0.2, test_size=0.2)
+        data.ut_edges = ut_edges
+        data.ut_edge_index_gcn = ut_edge_index_gcn
+        data.ut_edge_index_train = ut_edge_index_train
+        data.ut_edge_index_test = ut_edge_index_test
 
+        data.f_edge_index = torch.tensor((fixed_f_sources, fixed_f_targets), dtype=torch.int64)
+        
         # data.tweet = ...  # TODO
-        data.target = torch.rand(1, 4)  # TODO, nie mamy targetów
+        data.target = torch.rand(len(data.ut_edge_index_train), 4)  # TODO, nie mamy targetów
         return data
 
     def embed(self, tweets, batch=16):

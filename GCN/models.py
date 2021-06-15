@@ -12,12 +12,12 @@ from torch_geometric.nn import SAGEConv
 from GCN.datasets import RecSysBatchDS
 
 
-class MLP(nn.Module):
+class MLP(torch.nn.Module):
     def __init__(self, in_nodes, out_nodes):
         super(MLP, self).__init__()
-        self.lin1 = nn.Linear(in_nodes, 16)
-        self.lin2 = nn.Linear(16, 8)
-        self.lin3 = nn.Linear(8, out_nodes)
+        self.lin1 = nn.Linear(in_nodes, 256)
+        self.lin2 = nn.Linear(256, 32)
+        self.lin3 = nn.Linear(32, out_nodes)
 
     def forward(self, x):
         x = self.lin1(x)
@@ -42,10 +42,10 @@ class Net(pl.LightningModule):
 
         self.conv1 = SAGEConv((num_tweet_features, num_user_features), 64)
         self.norm1 = nn.BatchNorm1d(64)
-        self.conv2 = SAGEConv(64, 32)  # może byc GCNConv lub pochodne, jak chcemy
-        self.norm2 = nn.BatchNorm1d(32)
-        self.conv3 = SAGEConv(32, 32)
-        self.cls = MLP(32, 4)
+        self.conv2 = SAGEConv(64, 64)  # może byc GCNConv lub pochodne, jak chcemy
+        self.norm2 = nn.BatchNorm1d(64)
+        self.conv3 = SAGEConv(64, 32)
+        self.cls = MLP(num_tweet_features + 32, 4)
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.lr)
@@ -56,11 +56,12 @@ class Net(pl.LightningModule):
         x_users = data.x_users  # shape: [N_u, U]
         x_tweets = data.x_tweets  # shape: [N_t, T]
         # user_tweet_edge_type = data.edge_type  # shape: [N_ut], 0-4 | 16?
-        user_tweet_edge_index = data.ut_edge_index  # [2, N_ut]
+        user_tweet_edges = data.ut_edges   # [2, N_ut]
         follow_edge_index = data.f_edge_index  # [2, N_f]
 
+        gcn_edge_index = user_tweet_edges[:, data.ut_edge_index_gcn]
         # forward w nn.Module
-        h = self.conv1(x=(x_tweets, x_users), edge_index=user_tweet_edge_index)  # , edge_type=user_tweet_edge_type)
+        h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index)  # , edge_type=user_tweet_edge_type)
         h = self.norm1(h)
         F.relu(h)
         h = self.conv2(x=h, edge_index=follow_edge_index)
@@ -70,11 +71,19 @@ class Net(pl.LightningModule):
         # ograniczanie follow_edge_index dla tej warstwy? warto sprawdzic, czy jest lepiej????
         h = self.conv3(x=h, edge_index=follow_edge_index)
         F.relu(h)
+
         # mlp, do whatever u want with it
-        h = self.cls(h)  # TODO jeszcze Tweet...
+
+        # +====DANGER PLACE===
+        h = h[start]
+        train_tweet_index = user_tweet_edges[0, data.ut_edge_index_train]
+        h = h.repeat(len(train_tweet_index), -1)
+        h = torch.cat((h, data.x_tweets[train_tweet_index]), -1)   
+        # +===================
+        
         # F.sigmoid(h) BCEWithLogitsLoss - czy musimy dawać dodatkowo sigmoida ?
 
-        return h[start]
+        return self.cls(h)
 
     def step(self, batch, batch_idx, stage: str):
         x, y = batch, batch.target

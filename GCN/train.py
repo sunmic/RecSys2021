@@ -15,7 +15,7 @@ num_tweet_features = 768
 num_user_features = 3
 net = Net(num_tweet_features, num_user_features, lr=1e-2, path=args.path, neo4j_pass=args.neo4j_pass)
 
-trainer = pl.Trainer(gpus=1, fast_dev_run=False)
+trainer = pl.Trainer(gpus=1, fast_dev_run=False, max_epochs=10)
 
 trainer.fit(net)
 
