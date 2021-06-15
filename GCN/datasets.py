@@ -22,15 +22,23 @@ class RecSysData(Data):
         if key == 'ut_edges':
             return torch.tensor([[self.x_users.size(0)], [self.x_tweets.size(0)]]) 
         if key == 'ut_edge_index_gcn':
-            return self.x_tweets.size(0)    
+            return self.ut_edges.size(1)
         if key == 'ut_edge_index_train':
-            return self.x_tweets.size(0)
+            return self.ut_edges.size(1)
         if key == 'ut_edge_index_test':
-            return self.x_tweets.size(0)
+            return self.ut_edges.size(1)
         if key == 'f_edge_index':
             return self.x_users.size(0)
         else:
             return super().__inc__(key, value)
+
+    def __cat_dim__(self, key, value):
+        if key == 'ut_edges':
+            return 1
+        elif 'ut_edge_index' in key:
+            return 0
+        else:
+            return super().__cat_dim__(key, value)
 
 
 class RecSysBatchDS(InMemoryDataset):
@@ -109,7 +117,7 @@ class RecSysBatchDS(InMemoryDataset):
         train_size = int(len(start_node_edge_index) * train_size)
 
         ut_edge_index_test = start_node_edge_index[:test_size]
-        ut_edge_index_train  = start_node_edge_index[test_size:train_size+test_size]
+        ut_edge_index_train = start_node_edge_index[test_size:train_size+test_size]
         ut_edge_index_gcn = start_node_edge_index[train_size+test_size:]
         
         return ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test
