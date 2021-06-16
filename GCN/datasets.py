@@ -40,7 +40,7 @@ class RecSysData(Data):
             return super().__cat_dim__(key, value)
 
 class RecSysBatchDS(InMemoryDataset):
-    def __init__(self, root, path, neo4j_pass, transform=None, pre_transform=None, verbose=False, device='cuda'):
+    def __init__(self, root, path, neo4j_pass, transform=None, pre_transform=None, verbose=False, device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.path = path
         self.verbose = verbose
         self.device = device
@@ -119,7 +119,6 @@ class RecSysBatchDS(InMemoryDataset):
         ut_edge_index_train = start_node_edge_index[test_size:train_size+test_size]
         masked_edge_index = torch.cat((ut_edge_index_test, ut_edge_index_train))
         ut_edge_index_gcn = torch.tensor([x for x in torch.arange(len(ut_edges)) if x not in masked_edge_index])
-        print(ut_edge_index_gcn.shape)
 
         return ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test
 
@@ -165,8 +164,7 @@ class RecSysBatchDS(InMemoryDataset):
         data.start_index = start_index
         data.x_users = users
         with torch.no_grad():
-            data.x_tweets = self.embed(tweets, batch=8)
-        
+            data.x_tweets = self.embed(tweets, batch=8)# torch.zeros((len(tweets), 768))
         
         # Split ut edge indices
         ut_edges = torch.tensor((fixed_ut_targets, fixed_ut_sources), dtype=torch.int64)
