@@ -92,7 +92,7 @@ class Net(pl.LightningModule):
 
         # mlp, do whatever u want with it
         h = h[start]
-        train_tweet_index = user_tweet_edges[0, data.ut_edge_index_train]
+        train_tweet_index = user_tweet_edges[0, data.ut_edge_index]
         h = torch.cat([a.repeat(times, 1) for a, times in zip(h, data.ut_edge_size_train)], 0)
         h = torch.cat((h, data.x_tweets[train_tweet_index]), -1)   
         # F.sigmoid(h) BCEWithLogitsLoss - czy musimy dawać dodatkowo sigmoida ?
@@ -100,7 +100,14 @@ class Net(pl.LightningModule):
         return self.cls(h)
 
     def step(self, batch, batch_idx, stage: str):
-        x, y = batch, batch.target[batch.ut_edge_index_train]
+        batch.ut_edge_index = None
+        if stage == 'train':
+            batch.ut_edge_index = batch.ut_edge_index_train
+        elif stage == 'val' or stage == 'test':
+            batch.ut_edge_index = batch.ut_edge_index_test
+        else:
+            raise ValueError("Invalid stage")
+        x, y = batch, batch.target[batch.ut_edge_index]
         y_hat = self.forward(x)
         loss = self.loss_fn(y_hat, y)
 
