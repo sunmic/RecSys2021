@@ -7,7 +7,7 @@ from pytorch_lightning.utilities.types import STEP_OUTPUT
 from typing import Optional
 
 from torch_geometric.data import DataLoader
-from torch_geometric.nn import SAGEConv
+from torch_geometric.nn import SAGEConv, RGCNConv
 
 from GCN.datasets import RecSysBatchDS
 
@@ -41,7 +41,8 @@ class Net(pl.LightningModule):
         self.loss_fn = nn.BCEWithLogitsLoss()
         self.batch_size = batch_size
 
-        self.conv1 = SAGEConv((num_tweet_features, num_user_features), 64)
+        # self.conv1 = SAGEConv((num_tweet_features, num_user_features), 64)
+        self.conv1 = RGCNConv(in_channels=(num_tweet_features, num_user_features), out_channels=64, num_relations=5)
         self.norm1 = nn.BatchNorm1d(64)
         self.conv2 = SAGEConv(64, 64)  # może byc GCNConv lub pochodne, jak chcemy
         self.norm2 = nn.BatchNorm1d(64)
@@ -62,7 +63,12 @@ class Net(pl.LightningModule):
 
         gcn_edge_index = user_tweet_edges[:, data.ut_edge_index_gcn]
         # forward w nn.Module
-        h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index)  # , edge_type=user_tweet_edge_type)
+        # h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index)  # , edge_type=user_tweet_edge_type)
+        tt = data.target[:, data.ut_edge_index_gcn]
+        seen_col = torch.transpose((torch.ones(tt.size(0), device=tt.device) * (tt.sum(dim=-1) == 0).type(tt.type())).unsqueeze(0), 0, 1)
+        tt = torch.cat((tt, seen_col), dim=-1)
+        user_tweet_edge_type = tt.argmax(dim=-1)
+        h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index, edge_type=user_tweet_edge_type)
         h = self.norm1(h)
         F.relu(h)
         h = self.conv2(x=h, edge_index=follow_edge_index)
