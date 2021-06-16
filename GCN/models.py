@@ -7,7 +7,7 @@ from pytorch_lightning.utilities.types import STEP_OUTPUT
 from typing import Optional
 
 from torch_geometric.data import DataLoader
-from torch_geometric.nn import SAGEConv
+from torch_geometric.nn import SAGEConv, RGCNConv
 
 from GCN.datasets import RecSysBatchDS
 
@@ -41,7 +41,7 @@ class Net(pl.LightningModule):
         self.loss_fn = nn.BCEWithLogitsLoss()
         self.batch_size = batch_size
 
-        self.conv1 = SAGEConv((num_tweet_features, num_user_features), 64)
+        self.conv1 = RGCNConv((num_tweet_features, num_user_features), 64, num_relations=16)
         self.norm1 = nn.BatchNorm1d(64)
         self.conv2 = SAGEConv(64, 64)  # może byc GCNConv lub pochodne, jak chcemy
         self.norm2 = nn.BatchNorm1d(64)
@@ -50,6 +50,9 @@ class Net(pl.LightningModule):
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.lr)
+    
+    def bin_tensor2int(self, tensor):
+        return int("".join([str(x.int().item()) for x in tensor]), 2)
 
     def forward(self, x):
         data = x
@@ -62,7 +65,9 @@ class Net(pl.LightningModule):
 
         gcn_edge_index = user_tweet_edges[:, data.ut_edge_index_gcn]
         # forward w nn.Module
-        h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index)  # , edge_type=user_tweet_edge_type)
+        edge_type_matrix = data.target[data.ut_edge_index_gcn]
+        edge_type = torch.tensor(list(map(lambda x: self.bin_tensor2int(x), edge_type_matrix)))
+        h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index, edge_type=edge_type)
         h = self.norm1(h)
         F.relu(h)
         h = self.conv2(x=h, edge_index=follow_edge_index)
