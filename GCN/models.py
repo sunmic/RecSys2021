@@ -41,6 +41,7 @@ class Net(pl.LightningModule):
         self.loss_fn = nn.BCEWithLogitsLoss()
         self.batch_size = batch_size
 
+
         # self.conv1 = SAGEConv((num_tweet_features, num_user_features), 64)
         self.conv1 = RGCNConv(in_channels=(num_tweet_features, num_user_features), out_channels=64, num_relations=5)
         self.norm1 = nn.BatchNorm1d(64)
@@ -51,6 +52,9 @@ class Net(pl.LightningModule):
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.lr)
+    
+    def bin_tensor2int(self, tensor):
+        return int("".join([str(x.int().item()) for x in tensor]), 2)
 
     def forward(self, x):
         data = x
@@ -63,12 +67,19 @@ class Net(pl.LightningModule):
 
         gcn_edge_index = user_tweet_edges[:, data.ut_edge_index_gcn]
         # forward w nn.Module
+
         # h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index)  # , edge_type=user_tweet_edge_type)
-        tt = data.target[:, data.ut_edge_index_gcn]
+
+        tt = data.target[data.ut_edge_index_gcn]
         seen_col = torch.transpose((torch.ones(tt.size(0), device=tt.device) * (tt.sum(dim=-1) == 0).type(tt.type())).unsqueeze(0), 0, 1)
         tt = torch.cat((tt, seen_col), dim=-1)
         user_tweet_edge_type = tt.argmax(dim=-1)
         h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index, edge_type=user_tweet_edge_type)
+
+        # edge_type_matrix = data.target[data.ut_edge_index_gcn]
+        # edge_type = torch.tensor(list(map(lambda x: self.bin_tensor2int(x), edge_type_matrix)))
+        # h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index, edge_type=edge_type)
+
         h = self.norm1(h)
         F.relu(h)
         h = self.conv2(x=h, edge_index=follow_edge_index)
