@@ -29,11 +29,12 @@ func TestImmediateNeighbourhood(t *testing.T) {
 
 	sampling := NNSampling{
 		visited: make(map[int32]bool),
+		nodes:   make(map[int32]bool),
 	}
 	samples := 4
 	for key, elements := range expected {
 		sampling.startVertex = key
-		sampling.SampleImmediateNeighbourhood(graph, key, samples, false, false, false, false)
+		sampling.SampleImmediateNeighbourhood(graph, key, samples, false, false, false, false, false, true)
 		//sampling.Print()
 
 		if len(sampling.sources) != 4 {
@@ -99,9 +100,10 @@ func TestNeighbourhood(t *testing.T) {
 	sampling := NNSampling{
 		startVertex: 0,
 		visited:     make(map[int32]bool),
+		nodes:       make(map[int32]bool),
 	}
 
-	sampling.SampleNeighbourhood(graph, 0, levelSamples, 0)
+	sampling.SampleNeighbourhood(graph, 0, levelSamples, 0, false)
 	// 5 + 3 * 5
 	if len(sampling.sources) != 20 {
 		t.Fatalf("Number of sources does not match: expected %v, got %v (s%v, t%v) ", 20, len(sampling.sources), sampling.sources, sampling.targets)

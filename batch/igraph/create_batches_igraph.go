@@ -52,6 +52,7 @@ func randomKSample(max int, population int, result *[]int) {
 
 type NNSampling struct {
 	visited     map[int32]bool
+	nodes       map[int32]bool
 	sources     []int32
 	targets     []int32
 	edgeTypes   []int32
@@ -74,6 +75,7 @@ func (sampling *NNSampling) Print() {
 
 func (sampling *NNSampling) Reset() {
 	sampling.visited = make(map[int32]bool)
+	sampling.nodes = make(map[int32]bool)
 	sampling.sources = sampling.sources[:0]
 	sampling.targets = sampling.targets[:0]
 	sampling.edgeTypes = sampling.edgeTypes[:0]
@@ -81,14 +83,11 @@ func (sampling *NNSampling) Reset() {
 	sampling.randomMask = sampling.randomMask[:0]
 }
 
-func (state *NNSampling) SampleImmediateNeighbourhood(graph *C.igraph_t, vertex int32, samples int, duplicates bool, clearBuffers bool, allEdges bool, weights bool) {
+func (state *NNSampling) SampleImmediateNeighbourhood(graph *C.igraph_t, vertex int32, samples int, duplicates bool, clearBuffers bool, allEdges bool, weights bool, useNames bool, visitInitial bool) {
 	var vs C.igraph_vs_t
 	var vit C.igraph_vit_t
 	var eid C.igraph_integer_t
 	var eval C.igraph_real_t
-
-	// set self as visited
-	state.visited[vertex] = true
 
 	// if allEdges IGRAPH_ALL else IGRAPH_OUT
 	var mode C.igraph_neimode_t
@@ -100,6 +99,18 @@ func (state *NNSampling) SampleImmediateNeighbourhood(graph *C.igraph_t, vertex 
 
 	// check if weight attribute is present
 	var hasWeightAttribute = weights
+
+	//
+	var initialVertexId int32 = vertex
+	if useNames {
+		initialVertexId = int32(C.igraph_vertex_integer_name_attribute(graph, C.int(vertex)))
+	}
+
+	// set self as visited
+	if visitInitial {
+		state.visited[vertex] = true
+		state.nodes[initialVertexId] = true
+	}
 
 	// find non-visited neighbours using igraph
 	C.igraph_vs_adj(&vs, C.int(vertex), mode)
@@ -128,8 +139,17 @@ func (state *NNSampling) SampleImmediateNeighbourhood(graph *C.igraph_t, vertex 
 	for _, index := range state.randomMask {
 		adjVertex := state.neighbourhoodBuffer[index]
 		state.visited[adjVertex] = true
-		state.sources = append(state.sources, vertex)
-		state.targets = append(state.targets, adjVertex)
+		if useNames {
+			adjVertexId := int32(C.igraph_vertex_integer_name_attribute(graph, C.int(adjVertex)))
+			state.sources = append(state.sources, initialVertexId)
+			state.targets = append(state.targets, adjVertexId)
+			state.nodes[adjVertexId] = true
+		} else {
+			state.sources = append(state.sources, vertex)
+			state.targets = append(state.targets, adjVertex)
+			state.nodes[adjVertex] = true
+		}
+
 		if hasWeightAttribute {
 			C.igraph_get_eid(graph, &eid, C.int(vertex), C.int(adjVertex), booltoint(true), booltoint(false))
 			if eid != -1 {
@@ -150,7 +170,7 @@ func (state *NNSampling) SampleImmediateNeighbourhood(graph *C.igraph_t, vertex 
 	C.igraph_vit_destroy(&vit)
 }
 
-func (state *NNSampling) SampleNeighbourhood(graph *C.igraph_t, vertex int32, levelSamples []int, level int) {
+func (state *NNSampling) SampleNeighbourhood(graph *C.igraph_t, vertex int32, levelSamples []int, level int, useNames bool) {
 	if level >= len(levelSamples) {
 		return
 	}
@@ -161,7 +181,7 @@ func (state *NNSampling) SampleNeighbourhood(graph *C.igraph_t, vertex int32, le
 
 	// sample immediate neighbours
 	samples := levelSamples[level]
-	state.SampleImmediateNeighbourhood(graph, vertex, samples, false, false, true, false)
+	state.SampleImmediateNeighbourhood(graph, vertex, samples, false, false, true, false, useNames, true)
 
 	// sample neighbourhoods of neighbours if needed
 	if level+1 < len(levelSamples) {
@@ -172,15 +192,15 @@ func (state *NNSampling) SampleNeighbourhood(graph *C.igraph_t, vertex int32, le
 		}
 
 		for _, adjVertex := range sampledNeighbourhood {
-			state.SampleNeighbourhood(graph, adjVertex, levelSamples, level+1)
+			state.SampleNeighbourhood(graph, adjVertex, levelSamples, level+1, useNames)
 		}
 	}
 }
 
 func pushState(socialState *NNSampling, contentState *NNSampling, batch *models.SocialNetworkBatch) {
 	// create user neighbourhood
-	userNodes := make([]int32, 0, len(socialState.visited))
-	for vertex, present := range socialState.visited {
+	userNodes := make([]int32, 0, len(socialState.nodes))
+	for vertex, present := range socialState.nodes {
 		if !present {
 			continue
 		}
@@ -199,8 +219,8 @@ func pushState(socialState *NNSampling, contentState *NNSampling, batch *models.
 	}
 
 	// create tweet neighbourhood
-	tweetNodes := make([]int32, 0, len(contentState.visited))
-	for vertex, present := range contentState.visited {
+	tweetNodes := make([]int32, 0, len(contentState.nodes))
+	for vertex, present := range contentState.nodes {
 		if !present {
 			continue
 		}
@@ -244,6 +264,7 @@ type Task struct {
 	pbar         *pb.ProgressBar
 	batchSize    int
 	useEdgeTypes bool
+	useNames     bool
 	destDir      string
 }
 
@@ -268,21 +289,20 @@ func (task *Task) SaveBatch(batch *models.SocialNetworkBatch, iteration int, wor
 func (task *Task) GenerateNeighbourhoods(followerGraph *C.igraph_t, tweetsGraph *C.igraph_t, levelSamples []int, contentSamples int, channel <-chan int32, workIndex int) {
 	defer task.wg.Done()
 
-	var socialState = NNSampling{visited: make(map[int32]bool)}
-	var contentState = NNSampling{visited: make(map[int32]bool)}
+	var socialState = NNSampling{visited: make(map[int32]bool), nodes: make(map[int32]bool)}
+	var contentState = NNSampling{visited: make(map[int32]bool), nodes: make(map[int32]bool)}
 	var batch = &models.SocialNetworkBatch{}
 	var iteration int
 
 	for vertex := range channel {
 		socialState.startVertex = vertex
 		contentState.startVertex = vertex
-		socialState.SampleNeighbourhood(followerGraph, vertex, levelSamples, 0)
+		socialState.SampleNeighbourhood(followerGraph, vertex, levelSamples, 0, false)
 		for socialVertex, present := range socialState.visited {
 			if !present {
 				continue
 			}
-			contentState.SampleImmediateNeighbourhood(tweetsGraph, socialVertex, contentSamples, true, true, false, task.useEdgeTypes)
-			contentState.visited[socialVertex] = false
+			contentState.SampleImmediateNeighbourhood(tweetsGraph, socialVertex, contentSamples, true, true, false, task.useEdgeTypes, task.useNames, false)
 		}
 
 		pushState(&socialState, &contentState, batch)
@@ -340,7 +360,7 @@ func parseGraph(path string, nCol bool, directed bool) *C.igraph_t {
 	var errCode C.int
 	if nCol {
 		C.igraph_set_attribute_table(&C.igraph_cattribute_table)
-		errCode = C.igraph_read_graph_ncol(graph, fstruct, nil, booltoint(false), C.IGRAPH_ADD_WEIGHTS_YES, booltoint(directed))
+		errCode = C.igraph_read_graph_ncol(graph, fstruct, nil, booltoint(true), C.IGRAPH_ADD_WEIGHTS_YES, booltoint(directed))
 	} else {
 		errCode = C.igraph_read_graph_edgelist(graph, fstruct, 0, booltoint(directed))
 	}
@@ -413,7 +433,7 @@ func main() {
 
 	var wg sync.WaitGroup
 	channel := make(chan int32)
-	task := Task{wg: &wg, batchSize: batchSize, destDir: destDir, useEdgeTypes: ncolFormat}
+	task := Task{wg: &wg, batchSize: batchSize, destDir: destDir, useEdgeTypes: ncolFormat, useNames: ncolFormat}
 	go task.SubmitNodes(followersGraph, channel)
 	log.Printf("Starting %v workers", nWorkers)
 	for i := 0; i < nWorkers; i++ {
