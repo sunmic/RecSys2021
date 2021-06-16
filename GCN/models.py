@@ -76,7 +76,7 @@ class Net(pl.LightningModule):
         # mlp, do whatever u want with it
         h = h[start]
         train_tweet_index = user_tweet_edges[0, data.ut_edge_index_train]
-        h = h.repeat(len(train_tweet_index), 1)
+        h = torch.cat([a.repeat(times, 1) for a, times in zip(h, data.ut_edge_size_train)], 0)
         h = torch.cat((h, data.x_tweets[train_tweet_index]), -1)   
         # F.sigmoid(h) BCEWithLogitsLoss - czy musimy dawać dodatkowo sigmoida ?
 

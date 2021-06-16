@@ -19,7 +19,7 @@ class RecSysData(Data):
         if key == 'x_tweets':
             return self.x_tweets.size(0)
         if key == 'ut_edges':
-            return torch.tensor([[self.x_users.size(0)], [self.x_tweets.size(0)]]) 
+            return torch.tensor([[self.x_tweets.size(0)], [self.x_users.size(0)]])
         if key == 'ut_edge_index_gcn':
             return self.ut_edges.size(1)
         if key == 'ut_edge_index_train':
@@ -46,7 +46,7 @@ class RecSysBatchDS(InMemoryDataset):
         self.verbose = verbose
         self.device = device
         self.neo4j_pass = neo4j_pass
-        self.poc_size = 10  # TODO
+        self.poc_size = 200  # TODO
         # PyTorch geometric magic
         super(RecSysBatchDS, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -168,9 +168,14 @@ class RecSysBatchDS(InMemoryDataset):
         ut_edges = torch.tensor((fixed_ut_targets, fixed_ut_sources), dtype=torch.int64)
         ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test = self.split_ut_edge_index(ut_edges, data.start_index, train_size=0.2, test_size=0.2)
         data.ut_edges = ut_edges
+
         data.ut_edge_index_gcn = ut_edge_index_gcn
         data.ut_edge_index_train = ut_edge_index_train
         data.ut_edge_index_test = ut_edge_index_test
+        data.ut_edge_size_gcn = ut_edge_index_gcn.size(0)
+        data.ut_edge_size_train = ut_edge_index_train.size(0)
+        data.ut_edge_size_test = ut_edge_index_test.size(0)
+
 
         data.f_edge_index = torch.tensor((fixed_f_sources, fixed_f_targets), dtype=torch.int64)
         
