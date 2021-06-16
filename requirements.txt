@@ -2,8 +2,12 @@ transformers
 jupyter
 numpy
 neo4j
-torch
+torch==1.8.0
 scikit-learn
 clearml
-torch
-torch-geometric
+torch-scatter -f https://pytorch-geometric.com/whl/torch-1.8.0+cpu.html 
+torch-sparse -f https://pytorch-geometric.com/whl/torch-1.8.0+cpu.html 
+torch-cluster -f https://pytorch-geometric.com/whl/torch-1.8.0+cpu.html 
+torch-spline-conv -f https://pytorch-geometric.com/whl/torch-1.8.0+cpu.html 
+torch-geometric 
+pytorch_lightning 

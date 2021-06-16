@@ -39,7 +39,6 @@ class RecSysData(Data):
         else:
             return super().__cat_dim__(key, value)
 
-
 class RecSysBatchDS(InMemoryDataset):
     def __init__(self, root, path, neo4j_pass, transform=None, pre_transform=None, verbose=False, device='cuda'):
         self.path = path
@@ -118,10 +117,11 @@ class RecSysBatchDS(InMemoryDataset):
 
         ut_edge_index_test = start_node_edge_index[:test_size]
         ut_edge_index_train = start_node_edge_index[test_size:train_size+test_size]
-        ut_edge_index_gcn = start_node_edge_index[train_size+test_size:]
-        
+        masked_edge_index = torch.cat((ut_edge_index_test, ut_edge_index_train))
+        ut_edge_index_gcn = torch.tensor([x not in masked_edge_index for x in torch.arange(len(ut_edges))])
+
         return ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test
-    
+
     def edge_type_2_reaction_vector(self, edge_type):
         return torch.tensor([edge_type.like, edge_type.reply, edge_type.retweet, edge_type.retweet_comment], dtype=torch.float32)
 
@@ -135,14 +135,14 @@ class RecSysBatchDS(InMemoryDataset):
             print("#tweets in batch: {}".format(len(cnn.nodes)))
 
         user_nodes = [snn.start] + list(snn.nodes)
-        # %time user_result = session.run(user_query_format.format(user_list=user_nodes))
         user_result = self.session.run(self.user_query_format.format(user_list=user_nodes))
         users = torch.tensor([list(row.values()) for row in user_result.data()], dtype=torch.float32)
-
+        assert len(user_nodes) == users.size(0), "Protobuf user nodes and neo4j ones differ in size"
+        
         tweet_nodes = list(cnn.nodes)
-        # %time tweet_result = session.run(tweet_query_format.format(tweet_list=tweet_nodes))
         tweet_result = self.session.run(self.tweet_query_format.format(tweet_list=tweet_nodes))
         tweets = [row['text_tokens'] for row in tweet_result.data()]
+        assert len(tweet_nodes) == len(tweets), "Protobuf tweet nodes and neo4j ones differ in size"
 
         # recalculate edge index
         ut_sources = list(cnn.edge_index_source)
@@ -179,10 +179,8 @@ class RecSysBatchDS(InMemoryDataset):
         data.ut_edge_size_train = ut_edge_index_train.size(0)
         data.ut_edge_size_test = ut_edge_index_test.size(0)
 
-
         data.f_edge_index = torch.tensor((fixed_f_sources, fixed_f_targets), dtype=torch.int64)
         
-        # data.tweet = ...  # TODO
         data.target = torch.stack(
             [self.edge_type_2_reaction_vector(edge_type) for edge_type in cnn.edge_types.attributes]
         )
@@ -206,5 +204,3 @@ class RecSysBatchDS(InMemoryDataset):
             end = len(tweets) if i+batch > len(tweets) else i + batch
             result[i:end] = output.pooler_output.cpu().detach()
         return result
-
-
