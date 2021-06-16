@@ -94,6 +94,7 @@ class RecSysBatchDS(InMemoryDataset):
 
         # Read data into huge `Data` list.
         data_list = [self.data_item(idx) for idx in range(0, self.poc_size)]
+        data_list = [item for item in data_list if item.ut_edge_index_train.size(0) > 0]  # filter items without training data
 
         if self.pre_filter is not None:
             data_list = [data for data in data_list if self.pre_filter(data)]

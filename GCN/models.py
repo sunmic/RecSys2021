@@ -31,7 +31,7 @@ class MLP(torch.nn.Module):
 
 
 class Net(pl.LightningModule):
-    def __init__(self, num_tweet_features, num_user_features, path, neo4j_pass, lr=1e-3):
+    def __init__(self, num_tweet_features, num_user_features, path, neo4j_pass, lr=1e-3, batch_size=1):
         super().__init__()
 
         self.neo4j_pass = neo4j_pass
@@ -39,6 +39,7 @@ class Net(pl.LightningModule):
 
         self.lr = 1e-3
         self.loss_fn = nn.BCEWithLogitsLoss()
+        self.batch_size = batch_size
 
         self.conv1 = SAGEConv((num_tweet_features, num_user_features), 64)
         self.norm1 = nn.BatchNorm1d(64)
@@ -75,7 +76,7 @@ class Net(pl.LightningModule):
         # mlp, do whatever u want with it
         h = h[start]
         train_tweet_index = user_tweet_edges[0, data.ut_edge_index_train]
-        h = h.repeat(len(train_tweet_index), -1)
+        h = h.repeat(len(train_tweet_index), 1)
         h = torch.cat((h, data.x_tweets[train_tweet_index]), -1)   
         # F.sigmoid(h) BCEWithLogitsLoss - czy musimy dawać dodatkowo sigmoida ?
 
@@ -114,9 +115,9 @@ class Net(pl.LightningModule):
         self.test_dataset = self.train_dataset  # TODO
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=2, shuffle=True)
+        return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
 
     def val_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=2)
+        return DataLoader(self.test_dataset, batch_size=self.batch_size)
 
 
