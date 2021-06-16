@@ -45,7 +45,7 @@ class RecSysBatchDS(InMemoryDataset):
         self.verbose = verbose
         self.device = device
         self.neo4j_pass = neo4j_pass
-        self.poc_size = 200  # TODO
+        self.poc_size = 10  # TODO
         # PyTorch geometric magic
         super(RecSysBatchDS, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -118,7 +118,8 @@ class RecSysBatchDS(InMemoryDataset):
         ut_edge_index_test = start_node_edge_index[:test_size]
         ut_edge_index_train = start_node_edge_index[test_size:train_size+test_size]
         masked_edge_index = torch.cat((ut_edge_index_test, ut_edge_index_train))
-        ut_edge_index_gcn = torch.tensor([x not in masked_edge_index for x in torch.arange(len(ut_edges))])
+        ut_edge_index_gcn = torch.tensor([x for x in torch.arange(len(ut_edges)) if x not in masked_edge_index])
+        print(ut_edge_index_gcn.shape)
 
         return ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test
 
