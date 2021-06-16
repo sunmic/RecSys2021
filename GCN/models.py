@@ -111,9 +111,13 @@ class Net(pl.LightningModule):
         y_hat = self.forward(x)
         loss = self.loss_fn(y_hat, y)
 
-        # acc = accuracy(F.softmax(y_hat, dim=-1), y)
+        # performance metrics
+        acc = ((y_hat > 0) == y).sum() / (y.size(0) * y.size(1))
+        engagement_acc = (((y_hat > 0) == y) * y).sum() / y.sum()
+
         self.log(f'{stage}_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        # self.log(f'{stage}_acc', acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log(f'{stage}_acc', acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log(f'{stage}_engag_acc', engagement_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 
