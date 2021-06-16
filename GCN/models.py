@@ -83,7 +83,7 @@ class Net(pl.LightningModule):
         return self.cls(h)
 
     def step(self, batch, batch_idx, stage: str):
-        x, y = batch, batch.target
+        x, y = batch, batch.target[batch.ut_edge_index_train]
         y_hat = self.forward(x)
         loss = self.loss_fn(y_hat, y)
 

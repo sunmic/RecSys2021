@@ -121,6 +121,9 @@ class RecSysBatchDS(InMemoryDataset):
         ut_edge_index_gcn = start_node_edge_index[train_size+test_size:]
         
         return ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test
+    
+    def edge_type_2_reaction_vector(self, edge_type):
+        return torch.tensor([edge_type.like, edge_type.reply, edge_type.retweet, edge_type.retweet_comment], dtype=torch.float32)
 
     def data_item(self, index):
         nn = self.batch.elements[index]
@@ -180,7 +183,9 @@ class RecSysBatchDS(InMemoryDataset):
         data.f_edge_index = torch.tensor((fixed_f_sources, fixed_f_targets), dtype=torch.int64)
         
         # data.tweet = ...  # TODO
-        data.target = torch.rand(len(data.ut_edge_index_train), 4)  # TODO, nie mamy targetów
+        data.target = torch.stack(
+            [self.edge_type_2_reaction_vector(edge_type) for edge_type in cnn.edge_types.attributes]
+        )
         return data
 
     def embed(self, tweets, batch=16):
