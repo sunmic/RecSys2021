@@ -15,7 +15,7 @@ parser.add_argument('--execute_remotely', type=bool, default=False, help='execut
 args = parser.parse_args()
 
 if args.execute_remotely:
-    task = Task.init(project_name='RecSys2021', task_name='GCN')
+    task = Task.init(project_name='RecSys2021', task_name='GCN-weight-10-tm')
     task.execute_remotely("default")
 
 num_tweet_features = 768

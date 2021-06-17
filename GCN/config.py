@@ -17,12 +17,13 @@ Task.add_requirements('torch-cluster', '@ https://pytorch-geometric.com/whl/torc
 Task.add_requirements('torch-spline-conv', '@ https://pytorch-geometric.com/whl/torch-1.8.0+cu101/torch_spline_conv-1.2.1-cp37-cp37m-linux_x86_64.whl')
 Task.add_requirements('neo4j')
 Task.add_requirements('transformers')
+Task.add_requirements('torchmetrics')
 
 if hostname == 'LAPTOP-LKDD3MT2':
-    POC_SIZE = 10
+    POC_SIZE = 1000
     POC_ROOT = './root'
 else:   # colab
     POC_SIZE = 1000
-    POC_ROOT = './root'
+    POC_ROOT = '/content/root'
     sys.path.append('..')
     sys.path.append('../batch/neo4j/proto')

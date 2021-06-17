@@ -168,7 +168,7 @@ class RecSysBatchDS(InMemoryDataset):
         data.x_users = users
         with torch.no_grad():
             if len(tweets) > 0:
-                data.x_tweets = self.embed(tweets, batch=8)# torch.zeros((len(tweets), 768))
+                data.x_tweets = self.embed(tweets, batch=32)# torch.zeros((len(tweets), 768))
             else:
                 print("No tweets!")
                 data.x_tweets = torch.zeros((len(tweets), 768))

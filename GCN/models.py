@@ -8,6 +8,7 @@ from typing import Optional
 
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import SAGEConv, RGCNConv
+import torchmetrics as metrics
 
 from GCN.datasets import RecSysBatchDS
 from GCN.config import POC_ROOT
@@ -39,7 +40,7 @@ class Net(pl.LightningModule):
         self.path = path
 
         self.lr = 1e-3
-        self.loss_fn = nn.BCEWithLogitsLoss()
+        self.loss_fn = nn.BCEWithLogitsLoss(weight=torch.ones(4) * 10)
         self.batch_size = batch_size
 
 
@@ -116,10 +117,20 @@ class Net(pl.LightningModule):
         # performance metrics
         acc = ((y_hat > 0) == y).sum() / (y.size(0) * y.size(1))
         engagement_acc = (((y_hat > 0) == y) * y).sum() / y.sum()
+        engagement_prec = (((y_hat > 0) == y) * y).sum() / ((y_hat > 0).sum()+1e-10)
 
         self.log(f'{stage}_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_acc', acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_engag_acc', engagement_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log(f'{stage}_engag_prec', engagement_prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
+        y_hat = F.sigmoid(y_hat)
+        prec = metrics.functional.precision(y_hat, y, multilabel=True, average='samples')
+        f1 = metrics.functional.f1(y_hat, y, multilabel=True, average='samples')
+        tm_acc = metrics.functional.accuracy(y_hat, y, average='samples')
+        self.log(f'{stage}_torchmetrics_acc', tm_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log(f'{stage}_torchmetrics_prec', prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log(f'{stage}_torchmetrics_f1', f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 
@@ -143,7 +154,7 @@ class Net(pl.LightningModule):
         # path = '/content/drive/Shareddrives/RecSys21/neighbourhoods/batch_0_1000'
         # path = 'H:/Dyski współdzielone/RecSys21/neighbourhoods/batch_0_1000'
         self.train_dataset = RecSysBatchDS(root, self.path, self.neo4j_pass)
-        self.test_dataset = self.train_dataset  # TODO
+        self.test_dataset = self.train_dataset
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
