@@ -66,6 +66,7 @@ class Net(pl.LightningModule):
         user_tweet_edges = data.ut_edges   # [2, N_ut]
         follow_edge_index = data.f_edge_index  # [2, N_f]
 
+        data.ut_edge_index_gcn = data.ut_edge_index_gcn.type(torch.long)  # workaround for a bug: type is float
         gcn_edge_index = user_tweet_edges[:, data.ut_edge_index_gcn]
         # forward w nn.Module
 

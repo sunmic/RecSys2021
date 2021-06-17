@@ -94,6 +94,7 @@ class RecSysBatchDS(InMemoryDataset):
 
         # Read data into huge `Data` list.
         data_list = [self.data_item(idx) for idx in range(0, self.poc_size)]
+        # data_list = [self.data_item(idx) for idx in range(172, 172+self.poc_size)]  # quick bug replication TODO
         data_list = [item for item in data_list if item.ut_edge_index_train.size(0) > 0]  # filter items without training data
 
         if self.pre_filter is not None:
@@ -166,7 +167,11 @@ class RecSysBatchDS(InMemoryDataset):
         data.start_index = start_index
         data.x_users = users
         with torch.no_grad():
-            data.x_tweets = self.embed(tweets, batch=8)# torch.zeros((len(tweets), 768))
+            if len(tweets) > 0:
+                data.x_tweets = self.embed(tweets, batch=8)# torch.zeros((len(tweets), 768))
+            else:
+                print("No tweets!")
+                data.x_tweets = torch.zeros((len(tweets), 768))
         
         # Split ut edge indices
         ut_edges = torch.tensor((fixed_ut_targets, fixed_ut_sources), dtype=torch.int64)
@@ -181,10 +186,13 @@ class RecSysBatchDS(InMemoryDataset):
         data.ut_edge_size_test = ut_edge_index_test.size(0)
 
         data.f_edge_index = torch.tensor((fixed_f_sources, fixed_f_targets), dtype=torch.int64)
-        
-        data.target = torch.stack(
-            [self.edge_type_2_reaction_vector(edge_type) for edge_type in cnn.edge_types.attributes]
-        )
+
+        if len(cnn.edge_types.attributes) > 0:
+            data.target = torch.stack(
+                [self.edge_type_2_reaction_vector(edge_type) for edge_type in cnn.edge_types.attributes]
+            )
+        else:
+            data.target = torch.zeros(0)  # workaround
         return data
 
     def embed(self, tweets, batch=16):
