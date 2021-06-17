@@ -45,7 +45,7 @@ class RecSysBatchDS(InMemoryDataset):
         self.verbose = verbose
         self.device = device
         self.neo4j_pass = neo4j_pass
-        self.poc_size = 10  # TODO
+        self.poc_size = 1000  # TODO
         # PyTorch geometric magic
         super(RecSysBatchDS, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -126,6 +126,7 @@ class RecSysBatchDS(InMemoryDataset):
         return torch.tensor([edge_type.like, edge_type.reply, edge_type.retweet, edge_type.retweet_comment], dtype=torch.float32)
 
     def data_item(self, index):
+        print(f"Processing item {index}")
         nn = self.batch.elements[index]
         snn = nn.social_neighbourhood
         cnn = nn.content_neighbourhood

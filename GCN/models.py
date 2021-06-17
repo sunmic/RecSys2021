@@ -136,7 +136,7 @@ class Net(pl.LightningModule):
         # self.train_dataset = FAUST(path, True, T.Cartesian(), self.pre_transform)
         # self.test_dataset = FAUST(path, False, T.Cartesian(), self.pre_transform)
 
-        root = './root'
+        root = '/content/root'
         # path = '/content/drive/Shareddrives/RecSys21/neighbourhoods/batch_0_1000'
         # path = 'H:/Dyski współdzielone/RecSys21/neighbourhoods/batch_0_1000'
         self.train_dataset = RecSysBatchDS(root, self.path, self.neo4j_pass)
