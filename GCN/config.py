@@ -19,7 +19,10 @@ Task.add_requirements('neo4j')
 Task.add_requirements('transformers')
 
 if hostname == 'LAPTOP-LKDD3MT2':
-    pass
+    POC_SIZE = 10
+    POC_ROOT = './root'
 else:   # colab
+    POC_SIZE = 1000
+    POC_ROOT = './root'
     sys.path.append('..')
     sys.path.append('../batch/neo4j/proto')

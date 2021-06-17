@@ -10,6 +10,7 @@ from torch_geometric.data import DataLoader
 from torch_geometric.nn import SAGEConv, RGCNConv
 
 from GCN.datasets import RecSysBatchDS
+from GCN.config import POC_ROOT
 
 
 class MLP(torch.nn.Module):
@@ -136,7 +137,8 @@ class Net(pl.LightningModule):
         # self.train_dataset = FAUST(path, True, T.Cartesian(), self.pre_transform)
         # self.test_dataset = FAUST(path, False, T.Cartesian(), self.pre_transform)
 
-        root = '/content/root'
+        # root = './root'
+        root = POC_ROOT
         # path = '/content/drive/Shareddrives/RecSys21/neighbourhoods/batch_0_1000'
         # path = 'H:/Dyski współdzielone/RecSys21/neighbourhoods/batch_0_1000'
         self.train_dataset = RecSysBatchDS(root, self.path, self.neo4j_pass)

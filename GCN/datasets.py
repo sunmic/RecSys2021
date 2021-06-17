@@ -1,3 +1,4 @@
+from GCN.config import POC_SIZE
 from torch_geometric.data import InMemoryDataset, Dataset
 from social_neighbourhood_pb2 import SocialNetworkBatch, SocialNetworkNeighbourhood
 from torch_geometric.data import Data
@@ -45,7 +46,7 @@ class RecSysBatchDS(InMemoryDataset):
         self.verbose = verbose
         self.device = device
         self.neo4j_pass = neo4j_pass
-        self.poc_size = 1000  # TODO
+        self.poc_size = POC_SIZE  # TODO
         # PyTorch geometric magic
         super(RecSysBatchDS, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
