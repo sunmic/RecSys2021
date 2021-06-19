@@ -1,11 +1,14 @@
 from GCN.config import POC_SIZE
-from torch_geometric.data import InMemoryDataset, Dataset
-from social_neighbourhood_pb2 import SocialNetworkBatch, SocialNetworkNeighbourhood
+from torch_geometric.data import InMemoryDataset
+from social_neighbourhood_pb2 import SocialNetworkBatch
 from torch_geometric.data import Data
 import torch
 import neo4j
 from transformers import BertTokenizer, BertModel
 from tqdm import tqdm
+from sklearn.model_selection import train_test_split
+from utils import torch_delete, reactions, gcn_attributes
+import random
 
 
 class RecSysData(Data):
@@ -15,33 +18,19 @@ class RecSysData(Data):
     def __inc__(self, key, value):
         if key == 'start_index':
             return self.x_users.size(0)
-        if key == 'x_users':
-            return self.x_users.size(0)
-        if key == 'x_tweets':
-            return self.x_tweets.size(0)
-        if key == 'ut_edges':
+        if key == 'edge_index':
             return torch.tensor([[self.x_tweets.size(0)], [self.x_users.size(0)]])
-        if key == 'ut_edge_index_gcn':
-            return self.ut_edges.size(1)
-        if key == 'ut_edge_index_train':
-            return self.ut_edges.size(1)
-        if key == 'ut_edge_index_test':
-            return self.ut_edges.size(1)
+        if key.startswith('sn_tweet_index'):
+            return self.x_tweets.size(0)
         if key == 'f_edge_index':
             return self.x_users.size(0)
         else:
             return super().__inc__(key, value)
 
-    def __cat_dim__(self, key, value):
-        if key == 'ut_edges':
-            return 1
-        elif 'ut_edge_index' in key:
-            return 0
-        else:
-            return super().__cat_dim__(key, value)
 
 class RecSysBatchDS(InMemoryDataset):
-    def __init__(self, root, path, neo4j_pass, transform=None, pre_transform=None, verbose=False, device='cuda' if torch.cuda.is_available() else 'cpu'):
+    def __init__(self, root, path, neo4j_pass, transform=None, pre_transform=None, verbose=False,
+                 device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.path = path
         self.verbose = verbose
         self.device = device
@@ -94,8 +83,6 @@ class RecSysBatchDS(InMemoryDataset):
 
         # Read data into huge `Data` list.
         data_list = [self.data_item(idx) for idx in range(0, self.poc_size)]
-        # data_list = [self.data_item(idx) for idx in range(172, 172+self.poc_size)]  # quick bug replication TODO
-        data_list = [item for item in data_list if item.ut_edge_index_train.size(0) > 0]  # filter items without training data
 
         if self.pre_filter is not None:
             data_list = [data for data in data_list if self.pre_filter(data)]
@@ -106,26 +93,55 @@ class RecSysBatchDS(InMemoryDataset):
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
 
-    # def __len__(self):
-    #     return len(self.batch.elements)
+    def process_ut_pairs(self, ut_pairs, proto_edge_types, start_index):
 
-    # def __getitem__(self, index) -> T_co:
-    def split_ut_edge_index(self, ut_edges, start_index, test_size=0.2, train_size=0.2):
-        start_node_edge_index, = torch.where(start_index == ut_edges[1, :])
+        # reaction_int is needed for stratified split
+        # it can also be used to filter 'seen' reactions
+        reaction_vector, reaction_int = reactions(proto_edge_types)
 
-        start_node_edge_index = start_node_edge_index[torch.randperm(start_node_edge_index.size(0))]
-        test_size = int(len(start_node_edge_index) * test_size)
-        train_size = int(len(start_node_edge_index) * train_size)
+        sn_edges, = torch.where(start_index == ut_pairs[1])
+        sn_reaction_int = reaction_int[sn_edges]
+        sn_reaction_vector = reaction_vector[sn_edges]
 
-        ut_edge_index_test = start_node_edge_index[:test_size]
-        ut_edge_index_train = start_node_edge_index[test_size:train_size+test_size]
-        masked_edge_index = torch.cat((ut_edge_index_test, ut_edge_index_train))
-        ut_edge_index_gcn = torch.tensor([x for x in torch.arange(len(ut_edges)) if x not in masked_edge_index])
+        if sn_reaction_vector.size(0) == 0:  # no tweets for the user
+            sn_edges_train, sn_edges_test, sn_edges_masked = [], [], []
+            sn_reaction_vector_train, sn_reaction_vector_test = torch.empty(0, 4), torch.empty(0, 4)
+        elif sn_reaction_vector.size(0) == 1:  # use that tweet for tests
+            sn_edges_train, sn_edges_test, sn_edges_masked = [], sn_reaction_int, sn_reaction_int
+            sn_reaction_vector_train, sn_reaction_vector_test = torch.empty(0, 4), sn_reaction_vector
+        elif sn_reaction_vector.size(0) == 2:  # one for train, one for test
+            i1 = random.getrandbits(1)
+            i2 = (i1 + 2) % 2
+            sn_edges_train, sn_edges_test, sn_edges_masked = sn_reaction_int[i1], sn_reaction_int[i2], sn_reaction_int
+            sn_reaction_vector_train, sn_reaction_vector_test = sn_reaction_vector[i1], sn_reaction_vector[i2]
+        else:  # we have enough tweets for splits
+            try:
+                _, sn_edges_masked, _, sn_reaction_int_masked, _, sn_reaction_vector_masked = \
+                    train_test_split(sn_edges, sn_reaction_int, sn_reaction_vector, stratify=sn_reaction_int,
+                                     test_size=0.4,
+                                     random_state=0)
+            except ValueError:  # can not stratify because of not enough items - turn off stratification
+                _, sn_edges_masked, _, sn_reaction_int_masked, _, sn_reaction_vector_masked = \
+                    train_test_split(sn_edges, sn_reaction_int, sn_reaction_vector, test_size=0.4,
+                                     random_state=0)
 
-        return ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test
+            try:
+                sn_edges_train, sn_edges_test, sn_reaction_vector_train, sn_reaction_vector_test = train_test_split(
+                    sn_edges_masked, sn_reaction_vector_masked, stratify=sn_reaction_int_masked, test_size=0.5,
+                    random_state=0)
+            except ValueError:  # can not stratify because of not enough items - turn off stratification
+                sn_edges_train, sn_edges_test, sn_reaction_vector_train, sn_reaction_vector_test = train_test_split(
+                    sn_edges_masked, sn_reaction_vector_masked, test_size=0.5, random_state=0)
 
-    def edge_type_2_reaction_vector(self, edge_type):
-        return torch.tensor([edge_type.like, edge_type.reply, edge_type.retweet, edge_type.retweet_comment], dtype=torch.float32)
+        sn_tweet_index_train = ut_pairs[0, sn_edges_train]
+        sn_tweet_index_test = ut_pairs[0, sn_edges_test]
+
+        ut_pairs_gcn = torch.t(torch_delete(torch.t(ut_pairs), sn_edges_masked))
+        reaction_vector_gcn = torch_delete(reaction_vector, sn_edges_masked)
+        edge_index, edge_type = gcn_attributes(ut_pairs_gcn, reaction_vector_gcn)
+
+        return edge_index, edge_type, \
+               sn_reaction_vector_train, sn_reaction_vector_test, sn_tweet_index_train, sn_tweet_index_test
 
     def data_item(self, index):
         print(f"Processing item {index}")
@@ -141,7 +157,7 @@ class RecSysBatchDS(InMemoryDataset):
         user_result = self.session.run(self.user_query_format.format(user_list=user_nodes))
         users = torch.tensor([list(row.values()) for row in user_result.data()], dtype=torch.float32)
         assert len(user_nodes) == users.size(0), "Protobuf user nodes and neo4j ones differ in size"
-        
+
         tweet_nodes = list(cnn.nodes)
         tweet_result = self.session.run(self.tweet_query_format.format(tweet_list=tweet_nodes))
         tweets = [row['text_tokens'] for row in tweet_result.data()]
@@ -166,33 +182,30 @@ class RecSysBatchDS(InMemoryDataset):
         start_index = user_nodes.index(snn.start)
         data.start_index = start_index
         data.x_users = users
+
+        ut_pairs = torch.tensor((fixed_ut_targets, fixed_ut_sources), dtype=torch.int64)
+        edge_index, edge_type, \
+        sn_reaction_vector_train, sn_reaction_vector_test, sn_tweet_index_train, sn_tweet_index_test \
+            = self.process_ut_pairs(ut_pairs, cnn.edge_types.attributes, start_index)
+
+        data.edge_index = edge_index
+        data.edge_type = edge_type
+        data.sn_reaction_vector_train = sn_reaction_vector_train
+        data.sn_reaction_vector_test = sn_reaction_vector_test
+        data.sn_tweet_index_train = sn_tweet_index_train
+        data.sn_tweet_index_test = sn_tweet_index_test
+        data.size_train = sn_tweet_index_train.size(0)
+        data.size_test = sn_tweet_index_test.size(0)
+
         with torch.no_grad():
             if len(tweets) > 0:
-                data.x_tweets = self.embed(tweets, batch=32)# torch.zeros((len(tweets), 768))
+                data.x_tweets = self.embed(tweets, batch=32)
+                # data.x_tweets = torch.zeros((len(tweets), 768))
             else:
                 print("No tweets!")
-                data.x_tweets = torch.zeros((len(tweets), 768))
-        
-        # Split ut edge indices
-        ut_edges = torch.tensor((fixed_ut_targets, fixed_ut_sources), dtype=torch.int64)
-        ut_edge_index_gcn, ut_edge_index_train, ut_edge_index_test = self.split_ut_edge_index(ut_edges, data.start_index, train_size=0.2, test_size=0.2)
-        data.ut_edges = ut_edges
-
-        data.ut_edge_index_gcn = ut_edge_index_gcn
-        data.ut_edge_index_train = ut_edge_index_train
-        data.ut_edge_index_test = ut_edge_index_test
-        data.ut_edge_size_gcn = ut_edge_index_gcn.size(0)
-        data.ut_edge_size_train = ut_edge_index_train.size(0)
-        data.ut_edge_size_test = ut_edge_index_test.size(0)
+                data.x_tweets = torch.zeros((0, 768))
 
         data.f_edge_index = torch.tensor((fixed_f_sources, fixed_f_targets), dtype=torch.int64)
-
-        if len(cnn.edge_types.attributes) > 0:
-            data.target = torch.stack(
-                [self.edge_type_2_reaction_vector(edge_type) for edge_type in cnn.edge_types.attributes]
-            )
-        else:
-            data.target = torch.zeros(0)  # workaround
         return data
 
     def embed(self, tweets, batch=16):
@@ -206,10 +219,10 @@ class RecSysBatchDS(InMemoryDataset):
         result = torch.zeros((len(tweets), 768), dtype=torch.float32)
         for i in tqdm(range(0, len(tweets), batch)):
             output = self.model(
-                inputs.input_ids[i:i+batch],
-                attention_mask=inputs.attention_mask[i:i+batch],
+                inputs.input_ids[i:i + batch],
+                attention_mask=inputs.attention_mask[i:i + batch],
                 output_hidden_states=True
             )
-            end = len(tweets) if i+batch > len(tweets) else i + batch
+            end = len(tweets) if i + batch > len(tweets) else i + batch
             result[i:end] = output.pooler_output.cpu().detach()
         return result

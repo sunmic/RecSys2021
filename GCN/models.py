@@ -8,11 +8,10 @@ from typing import Optional
 
 from torch_geometric.data import DataLoader
 from torch_geometric.nn import SAGEConv, RGCNConv
-import torchmetrics as metrics
 
 from GCN.datasets import RecSysBatchDS
 from GCN.config import POC_ROOT
-
+import torchmetrics as metrics
 
 class MLP(torch.nn.Module):
     def __init__(self, in_nodes, out_nodes):
@@ -43,7 +42,6 @@ class Net(pl.LightningModule):
         self.loss_fn = nn.BCEWithLogitsLoss(weight=torch.ones(4) * 10)
         self.batch_size = batch_size
 
-
         # self.conv1 = SAGEConv((num_tweet_features, num_user_features), 64)
         self.conv1 = RGCNConv(in_channels=(num_tweet_features, num_user_features), out_channels=64, num_relations=5)
         self.norm1 = nn.BatchNorm1d(64)
@@ -54,7 +52,7 @@ class Net(pl.LightningModule):
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.lr)
-    
+
     def bin_tensor2int(self, tensor):
         return int("".join([str(x.int().item()) for x in tensor]), 2)
 
@@ -63,28 +61,16 @@ class Net(pl.LightningModule):
         start = data.start_index  # index of start node
         x_users = data.x_users  # shape: [N_u, U]
         x_tweets = data.x_tweets  # shape: [N_t, T]
-        # user_tweet_edge_type = data.edge_type  # shape: [N_ut], 0-4 | 16?
-        user_tweet_edges = data.ut_edges   # [2, N_ut]
         follow_edge_index = data.f_edge_index  # [2, N_f]
+        edge_index = data.edge_index
+        edge_type = data.edge_type
+        target_size = data.target_size
+        target_tweets_index = data.target_tweets_index
 
-        data.ut_edge_index_gcn = data.ut_edge_index_gcn.type(torch.long)  # workaround for a bug: type is float
-        gcn_edge_index = user_tweet_edges[:, data.ut_edge_index_gcn]
-        # forward w nn.Module
-
-        # h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index)  # , edge_type=user_tweet_edge_type)
-
-        tt = data.target[data.ut_edge_index_gcn]
-        seen_col = torch.transpose((torch.ones(tt.size(0), device=tt.device) * (tt.sum(dim=-1) == 0).type(tt.type())).unsqueeze(0), 0, 1)
-        tt = torch.cat((tt, seen_col), dim=-1)
-        user_tweet_edge_type = tt.argmax(dim=-1)
-        h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index, edge_type=user_tweet_edge_type)
-
-        # edge_type_matrix = data.target[data.ut_edge_index_gcn]
-        # edge_type = torch.tensor(list(map(lambda x: self.bin_tensor2int(x), edge_type_matrix)))
-        # h = self.conv1(x=(x_tweets, x_users), edge_index=gcn_edge_index, edge_type=edge_type)
-
+        h = self.conv1(x=(x_tweets, x_users), edge_index=edge_index, edge_type=edge_type)
         h = self.norm1(h)
         F.relu(h)
+
         h = self.conv2(x=h, edge_index=follow_edge_index)
         h = self.norm2(h)
         F.relu(h)
@@ -95,42 +81,46 @@ class Net(pl.LightningModule):
 
         # mlp, do whatever u want with it
         h = h[start]
-        train_tweet_index = user_tweet_edges[0, data.ut_edge_index]
-        h = torch.cat([a.repeat(times, 1) for a, times in zip(h, data.ut_edge_size_train)], 0)
-        h = torch.cat((h, data.x_tweets[train_tweet_index]), -1)   
+        h = torch.cat([a.repeat(times, 1) for a, times in zip(h, target_size)], 0)
+        h = torch.cat((h, x_tweets[target_tweets_index]), -1)
         # F.sigmoid(h) BCEWithLogitsLoss - czy musimy dawać dodatkowo sigmoida ?
 
         return self.cls(h)
 
     def step(self, batch, batch_idx, stage: str):
-        batch.ut_edge_index = None
+        batch.target = None
+        batch.target_tweets_index = None
         if stage == 'train':
-            batch.ut_edge_index = batch.ut_edge_index_train
+            batch.target = batch.sn_reaction_vector_train
+            batch.target_tweets_index = batch.sn_tweet_index_train
+            batch.target_size = batch.size_train
         elif stage == 'val' or stage == 'test':
-            batch.ut_edge_index = batch.ut_edge_index_test
+            batch.target = batch.sn_reaction_vector_test
+            batch.target_tweets_index = batch.sn_tweet_index_test
+            batch.target_size = batch.size_test
         else:
             raise ValueError("Invalid stage")
-        x, y = batch, batch.target[batch.ut_edge_index]
+        x, y = batch, batch.target
         y_hat = self.forward(x)
         loss = self.loss_fn(y_hat, y)
 
         # performance metrics
         acc = ((y_hat > 0) == y).sum() / (y.size(0) * y.size(1))
         engagement_acc = (((y_hat > 0) == y) * y).sum() / y.sum()
-        engagement_prec = (((y_hat > 0) == y) * y).sum() / ((y_hat > 0).sum()+1e-10)
+        engagement_prec = (((y_hat > 0) == y) * y).sum() / ((y_hat > 0).sum() + 1e-10)
 
         self.log(f'{stage}_loss', loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_acc', acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_engag_acc', engagement_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_engag_prec', engagement_prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-        y_hat = F.sigmoid(y_hat)
-        prec = metrics.functional.precision(y_hat, y, multilabel=True, average='samples')
-        f1 = metrics.functional.f1(y_hat, y, multilabel=True, average='samples')
-        tm_acc = metrics.functional.accuracy(y_hat, y, average='samples')
-        self.log(f'{stage}_torchmetrics_acc', tm_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log(f'{stage}_torchmetrics_prec', prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        self.log(f'{stage}_torchmetrics_f1', f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        # y_hat = F.sigmoid(y_hat) # are we sure ? Maybe it is better to do it in forward ?
+        # prec = metrics.functional.precision(y_hat, y, multilabel=True, average='samples')
+        # f1 = metrics.functional.f1(y_hat, y, multilabel=True, average='samples')
+        # tm_acc = metrics.functional.accuracy(y_hat, y, average='samples')
+        # self.log(f'{stage}_torchmetrics_acc', tm_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        # self.log(f'{stage}_torchmetrics_prec', prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        # self.log(f'{stage}_torchmetrics_f1', f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 
@@ -161,5 +151,3 @@ class Net(pl.LightningModule):
 
     def val_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size)
-
-
