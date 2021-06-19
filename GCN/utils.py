@@ -2,6 +2,8 @@ import torch
 
 
 def torch_delete(tensor, indices):
+    if tensor.numel() == 0:
+        return tensor
     mask = torch.ones(tensor.size(), dtype=torch.bool)
     mask[indices] = False
     return torch.masked_select(tensor, mask).reshape(tensor.size(0) - len(indices), -1)
