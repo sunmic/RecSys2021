@@ -107,12 +107,12 @@ class RecSysBatchDS(InMemoryDataset):
             sn_edges_train, sn_edges_test, sn_edges_masked = [], [], []
             sn_reaction_vector_train, sn_reaction_vector_test = torch.empty(0, 4), torch.empty(0, 4)
         elif sn_reaction_vector.size(0) == 1:  # use that tweet for tests
-            sn_edges_train, sn_edges_test, sn_edges_masked = [], sn_reaction_int, sn_reaction_int
+            sn_edges_train, sn_edges_test, sn_edges_masked = [], sn_edges, sn_edges
             sn_reaction_vector_train, sn_reaction_vector_test = torch.empty(0, 4), sn_reaction_vector
         elif sn_reaction_vector.size(0) == 2:  # one for train, one for test
             i1 = random.getrandbits(1)
-            i2 = (i1 + 2) % 2
-            sn_edges_train, sn_edges_test, sn_edges_masked = sn_reaction_int[i1], sn_reaction_int[i2], sn_reaction_int
+            i2 = (i1 + 1) % 2
+            sn_edges_train, sn_edges_test, sn_edges_masked = torch.stack((sn_edges[i1],)), torch.stack((sn_edges[i2],)), sn_edges
             sn_reaction_vector_train, sn_reaction_vector_test = sn_reaction_vector[i1], sn_reaction_vector[i2]
         else:  # we have enough tweets for splits
             try:
