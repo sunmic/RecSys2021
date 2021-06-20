@@ -12,6 +12,10 @@ from torch_geometric.nn import SAGEConv, RGCNConv
 from GCN.datasets import RecSysBatchDS
 from GCN.config import POC_ROOT
 import torchmetrics as metrics
+from sklearn.metrics import average_precision_score, log_loss
+
+from GCN.metrics import compute_rce
+
 
 class MLP(torch.nn.Module):
     def __init__(self, in_nodes, out_nodes, hidden=[256], dropout_rate=0.5):
@@ -123,13 +127,21 @@ class Net(pl.LightningModule):
         self.log(f'{stage}_engag_prec', engagement_prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         y_hat = F.sigmoid(y_hat)  # are we sure ? Maybe it is better to do it in forward ?
+        y_hat_thresh = (y_hat > 0.5).float()
         y = y.long()
         prec = metrics.functional.precision(y_hat, y, multilabel=True, average='samples')
         f1 = metrics.functional.f1(y_hat, y, multilabel=True, average='samples')
         tm_acc = metrics.functional.accuracy(y_hat, y, average='samples')
+
         self.log(f'{stage}_torchmetrics_acc', tm_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_torchmetrics_prec', prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_torchmetrics_f1', f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+
+        for i in range(4):
+            rce = compute_rce(y_hat_thresh[:, i], y[:, i])
+            ap = average_precision_score(y[:, i], y_hat_thresh[:, i])
+            self.log(f'{stage}_recsys_rce_' + str(i), rce, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+            self.log(f'{stage}_recsys_ap' + str(i), ap, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 
