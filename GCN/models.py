@@ -25,19 +25,22 @@ class MLP(torch.nn.Module):
 
         self.lin_in = nn.Linear(in_nodes, hidden[0])
         self.lin_hidden = nn.ModuleList()
-        for h_in, h_out in zip(hidden, hidden[1:] + [out_nodes]):
-            lin = nn.Linear(h_in, h_out)
-            self.lin_hidden.append(lin)
+        for h_in, h_out in zip(hidden[:-1], hidden[1:]):
+            self.lin_hidden.extend([
+                nn.Linear(h_in, h_out),
+                nn.ReLU(),
+                nn.Dropout(p=dropout_rate)
+            ])
+        self.lin_out = nn.Linear(hidden[-1], out_nodes)
         self.dropout_rate = dropout_rate
 
     def forward(self, x):
         x = self.lin_in(x)
         x = x.relu()
         x = F.dropout(x, p=self.dropout_rate, training=self.training)
-        for lin in self.lin_hidden:
-            x = lin(x)
-            x = x.relu()
-            x = F.dropout(x, p=self.dropout_rate, training=self.training)
+        if len(self.lin_hidden) != 0:
+            x = self.lin_hidden(x)
+        x = self.lin_out(x)
         return x
 
 
@@ -60,7 +63,7 @@ class Net(pl.LightningModule):
         self.norm2 = nn.BatchNorm1d(num_hidden)
         self.conv3 = SAGEConv(num_hidden, num_output)
         
-        self.clf = clf
+        self.clf = MLP(768+num_output, 4, hidden=[256], dropout_rate=0.5)
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.lr)
@@ -126,7 +129,7 @@ class Net(pl.LightningModule):
         self.log(f'{stage}_engag_acc', engagement_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_engag_prec', engagement_prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-        y_hat = F.sigmoid(y_hat)  # are we sure ? Maybe it is better to do it in forward ?
+        y_hat = torch.sigmoid(y_hat)  # are we sure ? Maybe it is better to do it in forward ?
         y_hat_thresh = (y_hat > 0.5).float()
         y = y.long()
         prec = metrics.functional.precision(y_hat, y, multilabel=True, average='samples')
@@ -139,9 +142,9 @@ class Net(pl.LightningModule):
 
         for i in range(4):
             rce = compute_rce(y_hat_thresh[:, i], y[:, i])
-            ap = average_precision_score(y[:, i], y_hat_thresh[:, i])
+            #ap = average_precision_score(y[:, i].cpu(), y_hat_thresh[:, i].cpu())
             self.log(f'{stage}_recsys_rce_' + str(i), rce, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-            self.log(f'{stage}_recsys_ap' + str(i), ap, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+            #self.log(f'{stage}_recsys_ap' + str(i), ap, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 
