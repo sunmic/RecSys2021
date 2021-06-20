@@ -66,7 +66,12 @@ def main(args):
         raise ValueError("loss_weights must be comma separated list of integers")
 
     mlp = MLP(mlp_input, mlp_output, hidden=mlp_hidden, dropout_rate=mlp_dropout)
-    net = Net(NUM_TWEET_FEATURES, NUM_USER_FEATURES, clf=mlp, lr=lr, batch_size=batch_size, loss_weights=loss_weights, root=args.root, path=args.path, neo4j_pass=args.neo4j_pass)
+    net = Net(
+        NUM_TWEET_FEATURES, NUM_USER_FEATURES, 
+        num_hidden=gcn_hidden, num_output=gcn_output, 
+        clf=mlp, lr=lr, batch_size=batch_size, loss_weights=loss_weights, 
+        root=args.root, path=args.path, neo4j_pass=args.neo4j_pass
+    )
 
     trainer = pl.Trainer(gpus=1 if torch.cuda.is_available() else None, fast_dev_run=False, max_epochs=100)
 
