@@ -15,12 +15,12 @@ parser.add_argument('--execute_remotely', type=bool, default=False, help='execut
 args = parser.parse_args()
 
 if args.execute_remotely:
-    task = Task.init(project_name='RecSys2021', task_name='GCN-weight-10-tm')
+    task = Task.init(project_name='RecSys2021', task_name='GCN-weight-10-bugfix6')
     task.execute_remotely("default")
 
 num_tweet_features = 768
 num_user_features = 3
-net = Net(num_tweet_features, num_user_features, lr=1e-3, path=args.path, neo4j_pass=args.neo4j_pass, batch_size=32)
+net = Net(num_tweet_features, num_user_features, lr=1e-3, path=args.path, neo4j_pass=args.neo4j_pass, batch_size=512)
 
 trainer = pl.Trainer(gpus=1 if torch.cuda.is_available() else None, fast_dev_run=False, max_epochs=100)
 

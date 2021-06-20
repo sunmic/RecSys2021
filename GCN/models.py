@@ -114,13 +114,14 @@ class Net(pl.LightningModule):
         self.log(f'{stage}_engag_acc', engagement_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_engag_prec', engagement_prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-        # y_hat = F.sigmoid(y_hat) # are we sure ? Maybe it is better to do it in forward ?
-        # prec = metrics.functional.precision(y_hat, y, multilabel=True, average='samples')
-        # f1 = metrics.functional.f1(y_hat, y, multilabel=True, average='samples')
-        # tm_acc = metrics.functional.accuracy(y_hat, y, average='samples')
-        # self.log(f'{stage}_torchmetrics_acc', tm_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        # self.log(f'{stage}_torchmetrics_prec', prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
-        # self.log(f'{stage}_torchmetrics_f1', f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        y_hat = F.sigmoid(y_hat)  # are we sure ? Maybe it is better to do it in forward ?
+        y = y.long()
+        prec = metrics.functional.precision(y_hat, y, multilabel=True, average='samples')
+        f1 = metrics.functional.f1(y_hat, y, multilabel=True, average='samples')
+        tm_acc = metrics.functional.accuracy(y_hat, y, average='samples')
+        self.log(f'{stage}_torchmetrics_acc', tm_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log(f'{stage}_torchmetrics_prec', prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log(f'{stage}_torchmetrics_f1', f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
 
