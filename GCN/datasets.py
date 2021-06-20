@@ -83,6 +83,7 @@ class RecSysBatchDS(InMemoryDataset):
 
         # Read data into huge `Data` list.
         data_list = [self.data_item(idx) for idx in range(0, self.poc_size)]
+        data_list = [item for item in data_list if item is not None]
 
         if self.pre_filter is not None:
             data_list = [data for data in data_list if self.pre_filter(data)]
@@ -225,6 +226,10 @@ class RecSysBatchDS(InMemoryDataset):
             tweet_nodes, ut_sources, ut_targets = self.filter_non_existing_tweet_nodes(
                 tweet_result, tweet_nodes, ut_sources, ut_targets
             )
+
+        if len(user_nodes) < 2 or len(tweet_nodes) == 0:
+            print("Neighbourhood too small. Ignoring...")
+            return None
 
         # recalculate edge index
         # very slow please don't use it in final implementation!
