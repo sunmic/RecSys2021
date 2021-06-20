@@ -18,7 +18,7 @@ from GCN.metrics import compute_rce
 
 
 class MLP(torch.nn.Module):
-    def __init__(self, in_nodes, out_nodes, hidden=[256], dropout_rate=0.5):
+    def __init__(self, in_nodes, out_nodes, hidden=[256, 32], dropout_rate=0.5):
         super(MLP, self).__init__()
         if len(hidden) == 0:
             raise ValueError("WTF invalid hidden sizes")
@@ -26,11 +26,7 @@ class MLP(torch.nn.Module):
         self.lin_in = nn.Linear(in_nodes, hidden[0])
         self.lin_hidden = nn.ModuleList()
         for h_in, h_out in zip(hidden[:-1], hidden[1:]):
-            self.lin_hidden.extend([
-                nn.Linear(h_in, h_out),
-                nn.ReLU(),
-                nn.Dropout(p=dropout_rate)
-            ])
+            self.lin_hidden.append(nn.Linear(h_in, h_out))
         self.lin_out = nn.Linear(hidden[-1], out_nodes)
         self.dropout_rate = dropout_rate
 
@@ -38,8 +34,10 @@ class MLP(torch.nn.Module):
         x = self.lin_in(x)
         x = x.relu()
         x = F.dropout(x, p=self.dropout_rate, training=self.training)
-        if len(self.lin_hidden) != 0:
-            x = self.lin_hidden(x)
+        for lin in self.lin_hidden:
+            x = lin(x)
+            x = x.relu()
+            x = F.dropout(x, p=self.dropout_rate, training=self.training)
         x = self.lin_out(x)
         return x
 
@@ -63,7 +61,7 @@ class Net(pl.LightningModule):
         self.norm2 = nn.BatchNorm1d(num_hidden)
         self.conv3 = SAGEConv(num_hidden, num_output)
         
-        self.clf = MLP(768+num_output, 4, hidden=[256], dropout_rate=0.5)
+        self.clf = clf
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.lr)
