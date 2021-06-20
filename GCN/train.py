@@ -1,3 +1,4 @@
+import config
 import argparse
 import torch
 from GCN.models import Net, MLP
@@ -37,7 +38,7 @@ def parse_args():
 
 def main(args):
     if args.execute_remotely:
-        task = Task.init(project_name='RecSys2021', task_name='GCN-weight-10-tm')
+        task = Task.init(project_name='RecSys2021', task_name='GCN-weight-10-params')
         task.execute_remotely("default")
 
     # gcn params
