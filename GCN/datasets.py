@@ -29,13 +29,13 @@ class RecSysData(Data):
 
 
 class RecSysBatchDS(InMemoryDataset):
-    def __init__(self, root, path, neo4j_pass, transform=None, pre_transform=None, verbose=False,
+    def __init__(self, root, path, neo4j_pass, size=POC_SIZE, transform=None, pre_transform=None, verbose=False,
                  device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.path = path
         self.verbose = verbose
         self.device = device
         self.neo4j_pass = neo4j_pass
-        self.poc_size = POC_SIZE  # TODO
+        self.poc_size = size
         # PyTorch geometric magic
         super(RecSysBatchDS, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
@@ -206,8 +206,8 @@ class RecSysBatchDS(InMemoryDataset):
 
         tweet_nodes = list(cnn.nodes)
         tweet_result = self.session.run(self.tweet_query_format.format(tweet_list=tweet_nodes)).data()
+        tweet_result = [row for row in tweet_result if len(row['text_tokens']) != 0] # filter empty tweets
         tweets = [row['text_tokens'] for row in tweet_result]
-        assert len(tweet_nodes) == len(tweets), "Protobuf tweet nodes and neo4j ones differ in size"
 
         ut_sources = list(cnn.edge_index_source)
         ut_targets = list(cnn.edge_index_target)
