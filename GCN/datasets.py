@@ -63,13 +63,13 @@ class RecSysBatchDS(InMemoryDataset):
         self.user_query_format = """
                 UNWIND {user_list} AS u_id
                 MATCH (u: User) WHERE id(u) = u_id
-                RETURN u.follower_count AS follower_count, u.following_count AS following_count, u.is_verified AS is_verified
+                RETURN id(u) as id, u.follower_count AS follower_count, u.following_count AS following_count, u.is_verified AS is_verified
                 """
 
         self.tweet_query_format = """
                 UNWIND {tweet_list} AS t_id
                 MATCH (t: Tweet) WHERE id(t) = t_id
-                RETURN t.text_tokens AS text_tokens
+                RETURN id(t) as id, t.text_tokens AS text_tokens
                 """
 
         uri = f"bolt://35.204.0.240:7687"
@@ -144,6 +144,49 @@ class RecSysBatchDS(InMemoryDataset):
         return edge_index, edge_type, \
                sn_reaction_vector_train, sn_reaction_vector_test, sn_tweet_index_train, sn_tweet_index_test
 
+    def filter_non_existing_user_nodes(neo4j_result_dict, user_nodes, f_sources, f_targets, ut_sources, ut_targets):
+        user_ids_to_remove = set(user_nodes)
+        for row in neo4j_result_dict:
+            user_ids_to_remove.remove(row['id'])
+
+        user_nodes = [node for node in user_nodes if node not in user_ids_to_remove]
+        
+        f_edge_indices_to_remove = set()
+        for i, source in enumerate(f_sources):
+            if source in user_ids_to_remove:
+                f_edge_indices_to_remove.add(i)
+        for i, target in enumerate(f_targets):
+            if target in user_ids_to_remove:
+                f_edge_indices_to_remove.add(i)
+        
+        f_sources = [source for i, source in enumerate(f_sources) if i not in f_edge_indices_to_remove]
+        f_targets = [target for i, target in enumerate(f_targets) if i not in f_edge_indices_to_remove]
+
+        ut_edge_indices_to_remove = set()
+        for i, source in enumerate(ut_sources):
+            if source in user_ids_to_remove:
+                ut_edge_indices_to_remove.add(i)
+        ut_sources = [source for i, source in enumerate(ut_sources) if i not in ut_edge_indices_to_remove]
+        ut_targets = [target for i, target in enumerate(ut_targets) if i not in ut_edge_indices_to_remove]
+
+        return user_nodes, f_sources, f_targets, ut_sources, ut_targets
+
+    def filter_non_existing_tweet_nodes(neo4j_result_dict, tweet_nodes, ut_sources, ut_targets):
+        tweet_ids_to_remove = set(tweet_nodes)
+        for row in neo4j_result_dict:
+            tweet_ids_to_remove.remove(row['id'])
+        
+        tweet_nodes = [node for node in tweet_nodes if node not in tweet_ids_to_remove]
+        
+        ut_edge_indices_to_remove = set()
+        for i, target in enumerate(ut_targets):
+            if target in tweet_ids_to_remove:
+                ut_edge_indices_to_remove.add(i)
+        ut_sources = [source for i, source in enumerate(ut_sources) if i not in ut_edge_indices_to_remove]
+        ut_targets = [target for i, target in enumerate(ut_targets) if i not in ut_edge_indices_to_remove]
+
+        return tweet_nodes, ut_sources, ut_targets
+
     def data_item(self, index):
         print(f"Processing item {index}")
         nn = self.batch.elements[index]
@@ -154,22 +197,34 @@ class RecSysBatchDS(InMemoryDataset):
             print("#nodes in batch: {}".format(len(snn.nodes)))
             print("#tweets in batch: {}".format(len(cnn.nodes)))
 
+        # pull node properties from neo4j
         user_nodes = [snn.start] + list(snn.nodes)
-        user_result = self.session.run(self.user_query_format.format(user_list=user_nodes))
-        users = torch.tensor([list(row.values()) for row in user_result.data()], dtype=torch.float32)
-        assert len(user_nodes) == users.size(0), "Protobuf user nodes and neo4j ones differ in size"
+        user_result = self.session.run(self.user_query_format.format(user_list=user_nodes)).data()
+        users = torch.tensor([list(row.values()) for row in user_result], dtype=torch.float32)
 
         tweet_nodes = list(cnn.nodes)
-        tweet_result = self.session.run(self.tweet_query_format.format(tweet_list=tweet_nodes))
-        tweets = [row['text_tokens'] for row in tweet_result.data()]
+        tweet_result = self.session.run(self.tweet_query_format.format(tweet_list=tweet_nodes)).data()
+        tweets = [row['text_tokens'] for row in tweet_result]
         assert len(tweet_nodes) == len(tweets), "Protobuf tweet nodes and neo4j ones differ in size"
 
-        # recalculate edge index
         ut_sources = list(cnn.edge_index_source)
         ut_targets = list(cnn.edge_index_target)
         f_sources = list(snn.edge_index_source)
         f_targets = list(snn.edge_index_target)
 
+        # remove ids poiting to non-existing elements
+        if len(user_nodes) == users.size(0):
+            print("Protobuf user nodes and neo4j ones differ in size. Removing missing ids...")
+            user_nodes, f_sources, f_targets, ut_sources, ut_targets = self.filter_non_existing_user_nodes(
+                user_result, user_nodes, f_sources, f_targets, ut_sources
+            )
+        if len(tweet_nodes) == len(tweets):
+            print("Protobuf tweet nodes and neo4j ones differ in size. Removing missing ids...")
+            tweet_nodes, ut_sources, ut_targets = self.filter_non_existing_tweet_nodes(
+                tweet_result, tweet_nodes, ut_sources, ut_targets
+            )
+
+        # recalculate edge index
         # very slow please don't use it in final implementation!
         fixed_f_sources = [user_nodes.index(v) for v in f_sources]
         fixed_f_targets = [user_nodes.index(v) for v in f_targets]
@@ -201,7 +256,6 @@ class RecSysBatchDS(InMemoryDataset):
         with torch.no_grad():
             if len(tweets) > 0:
                 data.x_tweets = self.embed(tweets, batch=32)
-                # data.x_tweets = torch.zeros((len(tweets), 768))
             else:
                 print("No tweets!")
                 data.x_tweets = torch.zeros((0, 768))
