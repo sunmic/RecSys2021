@@ -7,7 +7,7 @@ import neo4j
 from transformers import BertTokenizer, BertModel
 from tqdm import tqdm
 from sklearn.model_selection import train_test_split
-from utils import torch_delete, reactions, gcn_attributes
+from GCN.utils import torch_delete, reactions, gcn_attributes
 import random
 
 
@@ -144,10 +144,11 @@ class RecSysBatchDS(InMemoryDataset):
         return edge_index, edge_type, \
                sn_reaction_vector_train, sn_reaction_vector_test, sn_tweet_index_train, sn_tweet_index_test
 
-    def filter_non_existing_user_nodes(neo4j_result_dict, user_nodes, f_sources, f_targets, ut_sources, ut_targets):
+    def filter_non_existing_user_nodes(self, neo4j_result_dict, user_nodes, f_sources, f_targets, ut_sources, ut_targets):
         user_ids_to_remove = set(user_nodes)
         for row in neo4j_result_dict:
             user_ids_to_remove.remove(row['id'])
+        print(f"Missing user ids: {user_ids_to_remove}")
 
         user_nodes = [node for node in user_nodes if node not in user_ids_to_remove]
         
@@ -171,11 +172,12 @@ class RecSysBatchDS(InMemoryDataset):
 
         return user_nodes, f_sources, f_targets, ut_sources, ut_targets
 
-    def filter_non_existing_tweet_nodes(neo4j_result_dict, tweet_nodes, ut_sources, ut_targets):
+    def filter_non_existing_tweet_nodes(self, neo4j_result_dict, tweet_nodes, ut_sources, ut_targets):
         tweet_ids_to_remove = set(tweet_nodes)
         for row in neo4j_result_dict:
             tweet_ids_to_remove.remove(row['id'])
-        
+        print(f"Missing tweet ids: {tweet_ids_to_remove}")
+
         tweet_nodes = [node for node in tweet_nodes if node not in tweet_ids_to_remove]
         
         ut_edge_indices_to_remove = set()
@@ -198,9 +200,9 @@ class RecSysBatchDS(InMemoryDataset):
             print("#tweets in batch: {}".format(len(cnn.nodes)))
 
         # pull node properties from neo4j
-        user_nodes = [snn.start] + list(snn.nodes)
+        user_nodes = list(snn.nodes)
         user_result = self.session.run(self.user_query_format.format(user_list=user_nodes)).data()
-        users = torch.tensor([list(row.values()) for row in user_result], dtype=torch.float32)
+        users = torch.tensor([[row['follower_count'], row['following_count'], row['is_verified']] for row in user_result], dtype=torch.float32)
 
         tweet_nodes = list(cnn.nodes)
         tweet_result = self.session.run(self.tweet_query_format.format(tweet_list=tweet_nodes)).data()
@@ -213,12 +215,12 @@ class RecSysBatchDS(InMemoryDataset):
         f_targets = list(snn.edge_index_target)
 
         # remove ids poiting to non-existing elements
-        if len(user_nodes) == users.size(0):
+        if len(user_nodes) != users.size(0):
             print("Protobuf user nodes and neo4j ones differ in size. Removing missing ids...")
             user_nodes, f_sources, f_targets, ut_sources, ut_targets = self.filter_non_existing_user_nodes(
-                user_result, user_nodes, f_sources, f_targets, ut_sources
+                user_result, user_nodes, f_sources, f_targets, ut_sources, ut_targets
             )
-        if len(tweet_nodes) == len(tweets):
+        if len(tweet_nodes) != len(tweets):
             print("Protobuf tweet nodes and neo4j ones differ in size. Removing missing ids...")
             tweet_nodes, ut_sources, ut_targets = self.filter_non_existing_tweet_nodes(
                 tweet_result, tweet_nodes, ut_sources, ut_targets
