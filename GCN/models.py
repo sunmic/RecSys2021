@@ -14,41 +14,49 @@ from GCN.config import POC_ROOT
 import torchmetrics as metrics
 
 class MLP(torch.nn.Module):
-    def __init__(self, in_nodes, out_nodes):
+    def __init__(self, in_nodes, out_nodes, hidden=[256], dropout_rate=0.5):
         super(MLP, self).__init__()
-        self.lin1 = nn.Linear(in_nodes, 256)
-        self.lin2 = nn.Linear(256, 32)
-        self.lin3 = nn.Linear(32, out_nodes)
+        if len(hidden) == 0:
+            raise ValueError("WTF invalid hidden sizes")
+
+        self.lin_in = nn.Linear(in_nodes, hidden[0])
+        self.lin_hidden = nn.ModuleList()
+        for h_in, h_out in zip(hidden, hidden[1:] + [out_nodes]):
+            lin = nn.Linear(h_in, h_out)
+            self.lin_hidden.append(lin)
+        self.dropout_rate = dropout_rate
 
     def forward(self, x):
-        x = self.lin1(x)
+        x = self.lin_in(x)
         x = x.relu()
-        x = F.dropout(x, p=0.5, training=self.training)
-        x = self.lin2(x)
-        x = x.relu()
-        x = F.dropout(x, p=0.5, training=self.training)
-        x = self.lin3(x)
+        x = F.dropout(x, p=self.dropout_rate, training=self.training)
+        for lin in self.lin_hidden:
+            x = lin(x)
+            x = x.relu()
+            x = F.dropout(x, p=self.dropout_rate, training=self.training)
         return x
 
 
 class Net(pl.LightningModule):
-    def __init__(self, num_tweet_features, num_user_features, path, neo4j_pass, lr=1e-3, batch_size=1):
+    def __init__(self, num_tweet_features, num_user_features, root, path, neo4j_pass, clf, num_hidden=64, num_output=32, lr=1e-3, batch_size=32, loss_weights=torch.tensor([10, 10, 10, 10])):
         super().__init__()
 
         self.neo4j_pass = neo4j_pass
         self.path = path
+        self.root = root
 
-        self.lr = 1e-3
-        self.loss_fn = nn.BCEWithLogitsLoss(weight=torch.ones(4) * 10)
+        self.lr = lr
+        self.loss_fn = nn.BCEWithLogitsLoss(weight=loss_weights)
         self.batch_size = batch_size
 
         # self.conv1 = SAGEConv((num_tweet_features, num_user_features), 64)
-        self.conv1 = RGCNConv(in_channels=(num_tweet_features, num_user_features), out_channels=64, num_relations=5)
-        self.norm1 = nn.BatchNorm1d(64)
-        self.conv2 = SAGEConv(64, 64)  # może byc GCNConv lub pochodne, jak chcemy
-        self.norm2 = nn.BatchNorm1d(64)
-        self.conv3 = SAGEConv(64, 32)
-        self.cls = MLP(num_tweet_features + 32, 4)
+        self.conv1 = RGCNConv(in_channels=(num_tweet_features, num_user_features), out_channels=num_hidden, num_relations=5)
+        self.norm1 = nn.BatchNorm1d(num_hidden)
+        self.conv2 = SAGEConv(num_hidden, num_hidden)  # może byc GCNConv lub pochodne, jak chcemy
+        self.norm2 = nn.BatchNorm1d(num_hidden)
+        self.conv3 = SAGEConv(num_hidden, num_output)
+        
+        self.clf = clf
 
     def configure_optimizers(self):
         return optim.Adam(self.parameters(), lr=self.lr)
@@ -85,7 +93,7 @@ class Net(pl.LightningModule):
         h = torch.cat((h, x_tweets[target_tweets_index]), -1)
         # F.sigmoid(h) BCEWithLogitsLoss - czy musimy dawać dodatkowo sigmoida ?
 
-        return self.cls(h)
+        return self.clf(h)
 
     def step(self, batch, batch_idx, stage: str):
         batch.target = None
@@ -134,16 +142,7 @@ class Net(pl.LightningModule):
         return self.step(batch, batch_idx, stage='test')
 
     def prepare_data(self):
-        # path = osp.join(osp.dirname(osp.realpath(__file__)), "..", "data", "FAUST")
-        # self.pre_transform = T.Compose([T.FaceToEdge(), T.Constant(value=1)])
-        # self.train_dataset = FAUST(path, True, T.Cartesian(), self.pre_transform)
-        # self.test_dataset = FAUST(path, False, T.Cartesian(), self.pre_transform)
-
-        # root = './root'
-        root = POC_ROOT
-        # path = '/content/drive/Shareddrives/RecSys21/neighbourhoods/batch_0_1000'
-        # path = 'H:/Dyski współdzielone/RecSys21/neighbourhoods/batch_0_1000'
-        self.train_dataset = RecSysBatchDS(root, self.path, self.neo4j_pass)
+        self.train_dataset = RecSysBatchDS(self.root, self.path, self.neo4j_pass)
         self.test_dataset = self.train_dataset
 
     def train_dataloader(self):

@@ -26,6 +26,10 @@ class RecSysData(Data):
             return self.x_users.size(0)
         else:
             return super().__inc__(key, value)
+    
+    @property
+    def num_nodes(self):
+        return self.x_users.size(0) + self.x_tweets.size(0)
 
 
 class RecSysBatchDS(InMemoryDataset):
