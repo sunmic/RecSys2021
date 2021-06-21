@@ -129,14 +129,17 @@ class Net(pl.LightningModule):
 
         y_hat = torch.sigmoid(y_hat)  # are we sure ? Maybe it is better to do it in forward ?
         y_hat_thresh = (y_hat > 0.5).float()
+        y_hat_random = (torch.rand(y.size()) > 0.5).float()
         y = y.long()
         prec = metrics.functional.precision(y_hat, y, multilabel=True, average='samples')
         f1 = metrics.functional.f1(y_hat, y, multilabel=True, average='samples')
+        f1_random = metrics.functional.f1(y_hat_random, y, multilabel=True, average='samples')
         tm_acc = metrics.functional.accuracy(y_hat, y, average='samples')
 
         self.log(f'{stage}_torchmetrics_acc', tm_acc, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_torchmetrics_prec', prec, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_torchmetrics_f1', f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        self.log(f'{stage}_torchmetrics_f1_random', f1_random, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         for i in range(4):
             rce = compute_rce(y_hat_thresh[:, i], y[:, i])
