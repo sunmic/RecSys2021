@@ -69,7 +69,6 @@ def main(args):
         raise ValueError("loss_weights must be comma separated list of integers")
 
     mlp = MLP(mlp_input, mlp_output, hidden=mlp_hidden, dropout_rate=mlp_dropout)
-    print(lr)
     net = Net(
         NUM_TWEET_FEATURES, NUM_USER_FEATURES, 
         num_hidden=gcn_hidden, num_output=gcn_output, 
