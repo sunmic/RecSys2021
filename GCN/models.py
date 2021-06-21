@@ -129,7 +129,7 @@ class Net(pl.LightningModule):
 
         y_hat = torch.sigmoid(y_hat)  # are we sure ? Maybe it is better to do it in forward ?
         y_hat_thresh = (y_hat > 0.5).float()
-        y_hat_random = (torch.rand(y.size()) > 0.5).float()
+        y_hat_random = (torch.rand(y.size()) > 0.5).float().to(y.device)
         y = y.long()
         prec = metrics.functional.precision(y_hat, y, multilabel=True, average='samples')
         f1 = metrics.functional.f1(y_hat, y, multilabel=True, average='samples')
@@ -141,10 +141,10 @@ class Net(pl.LightningModule):
         self.log(f'{stage}_torchmetrics_f1', f1, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         self.log(f'{stage}_torchmetrics_f1_random', f1_random, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
-        for i in range(4):
-            rce = compute_rce(y_hat_thresh[:, i], y[:, i])
+        #for i in range(4):
+            #rce = compute_rce(y_hat_thresh[:, i], y[:, i])
             #ap = average_precision_score(y[:, i].cpu(), y_hat_thresh[:, i].cpu())
-            self.log(f'{stage}_recsys_rce_' + str(i), rce, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+            #self.log(f'{stage}_recsys_rce_' + str(i), rce, on_step=False, on_epoch=True, prog_bar=True, logger=True)
             #self.log(f'{stage}_recsys_ap' + str(i), ap, on_step=False, on_epoch=True, prog_bar=True, logger=True)
 
         return loss
